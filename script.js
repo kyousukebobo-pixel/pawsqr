@@ -1118,50 +1118,125 @@ function launchQrScanner(target) {
   const config = { fps: 10, qrbox: 250 };
   const scannerName = target === 'pet' ? 'petScanner' : 'finderScanner';
   const container = target === 'pet' ? $('scannerContainer') : $('finderScannerContainer');
-  const input = target === 'pet' ? $('petQrCode') : $('finderQrInput');
   const status = target === 'pet' ? $('scannerStatus') : null;
+
+  // Show scanner container
   container.classList.remove('hidden');
 
-  // Properly stop and clear previous scanner instance before starting a new one
-  if (STATE[scannerName]) {
-    STATE[scannerName].stop().then(() => {
-      STATE[scannerName].clear().catch(() => {});
-      STATE[scannerName] = null;
-      startNewScanner();
-    }).catch(() => {
-      STATE[scannerName] = null;
-      startNewScanner();
-    });
-  } else {
-    startNewScanner();
-  }
+  // Ensure any existing scanner is completely stopped and cleared before starting a new one
+  const cleanupAndStartScanner = () => {
+    if (STATE[scannerName]) {
+      try {
+        STATE[scannerName].stop()
+          .then(() => {
+            // Successful stop, now clear
+            try {
+              STATE[scannerName].clear();
+            } catch (e) {
+              console.warn('Error clearing scanner:', e);
+            }
+            STATE[scannerName] = null;
+            startFreshScanner();
+          })
+          .catch((stopErr) => {
+            // Stop failed, but force cleanup anyway
+            console.warn('Error stopping scanner:', stopErr);
+            try {
+              STATE[scannerName].clear();
+            } catch (e) {
+              console.warn('Error clearing scanner after stop failure:', e);
+            }
+            STATE[scannerName] = null;
+            startFreshScanner();
+          });
+      } catch (e) {
+        console.warn('Error in scanner cleanup:', e);
+        STATE[scannerName] = null;
+        startFreshScanner();
+      }
+    } else {
+      startFreshScanner();
+    }
+  };
 
-  function startNewScanner() {
-    const html5QrCode = new Html5Qrcode(target === 'pet' ? 'scannerContainer' : 'finderScannerContainer');
-    STATE[scannerName] = html5QrCode;
+  const startFreshScanner = () => {
+    try {
+      const html5QrCode = new Html5Qrcode(
+        target === 'pet' ? 'scannerContainer' : 'finderScannerContainer'
+      );
+      STATE[scannerName] = html5QrCode;
 
-    html5QrCode.start({ facingMode: 'environment' }, config, (decodedText) => {
-      html5QrCode.stop().then(() => {
-        container.classList.add('hidden');
-        if (target === 'pet') {
-          verifyScannedQr(decodedText);
-        } else {
-          input.value = decodedText;
-          handleFinderLookup();
+      html5QrCode.start(
+        { facingMode: 'environment' },
+        config,
+        (decodedText) => {
+          // QR code successfully scanned
+          if (target === 'pet') {
+            handlePetQrScanned(decodedText, html5QrCode, container);
+          } else {
+            handleFinderQrScanned(decodedText, html5QrCode, container);
+          }
         }
-      }).catch(() => {
-        container.classList.add('hidden');
-        if (target === 'pet') {
-          verifyScannedQr(decodedText);
-        } else {
-          input.value = decodedText;
-          handleFinderLookup();
+      ).catch((err) => {
+        console.error('Error starting scanner:', err);
+        if (status) {
+          status.textContent = 'Camera not available. Enter QR code manually.';
         }
+        STATE[scannerName] = null;
       });
-    }).catch((err) => {
-      if (status) status.textContent = 'Camera not available. Enter QR code manually.';
+    } catch (e) {
+      console.error('Error initializing scanner:', e);
+      if (status) {
+        status.textContent = 'Error initializing scanner.';
+      }
+      STATE[scannerName] = null;
+    }
+  };
+
+  cleanupAndStartScanner();
+}
+
+function handlePetQrScanned(decodedText, scannerInstance, container) {
+  // Stop the scanner immediately
+  scannerInstance.stop()
+    .then(() => {
+      scannerInstance.clear().catch(() => {});
+      STATE.petScanner = null;
+      container.classList.add('hidden');
+      
+      // Now verify the QR code and set state
+      verifyScannedQr(decodedText);
+    })
+    .catch(() => {
+      scannerInstance.clear().catch(() => {});
+      STATE.petScanner = null;
+      container.classList.add('hidden');
+      
+      // Still verify even if stop failed
+      verifyScannedQr(decodedText);
     });
-  }
+}
+
+function handleFinderQrScanned(decodedText, scannerInstance, container) {
+  // Stop the scanner immediately
+  scannerInstance.stop()
+    .then(() => {
+      scannerInstance.clear().catch(() => {});
+      STATE.finderScanner = null;
+      container.classList.add('hidden');
+      
+      // Set the input and lookup
+      $('finderQrInput').value = decodedText;
+      handleFinderLookup();
+    })
+    .catch(() => {
+      scannerInstance.clear().catch(() => {});
+      STATE.finderScanner = null;
+      container.classList.add('hidden');
+      
+      $('finderQrInput').value = decodedText;
+      handleFinderLookup();
+    });
 }
 
 function verifyScannedQr(codeText) {
