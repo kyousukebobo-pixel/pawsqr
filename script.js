@@ -895,11 +895,15 @@ function autoLoginFromHash() {
 }
 
 function routeToView() {
+  // Ensure navigation visibility is correct before routing
+  setNavigation();
+  
   const hash = location.hash.replace('#', '');
   const queryParams = new URLSearchParams(window.location.search);
   const deepQr = queryParams.get('qr');
   
   // SCENARIO A: Deep-link via QR code scan (handle before checking currentUser)
+  // This is public - works whether user is logged in or not
   if (deepQr) {
     const rawCode = normalizeQrText(deepQr);
     const qrCode = loadData(storageKeys.qrCodes, []).find((q) => q.code === rawCode);
@@ -911,19 +915,24 @@ function routeToView() {
       return;
     }
     
-    // SCENARIO B: QR code is REGISTERED to a pet
+    // SCENARIO B: QR code is REGISTERED to a pet - show pet info (public finder view)
     if (qrCode.status === 'assigned' && qrCode.petId) {
       renderFinderResult(rawCode);
       return;
     }
     
-    // SCENARIO A: QR code is UNREGISTERED (available)
+    // SCENARIO C: QR code is UNREGISTERED (available) - send to login/registration
     if (qrCode.status === 'available') {
       STATE.pendingQrCode = qrCode;
       showView('loginScreen');
       showMessage('Welcome! This collar is ready to be registered. Please log in or create an account.');
       return;
     }
+    
+    // SCENARIO D: QR code exists but is deactivated or lost - show error
+    showMessage('This collar has been deactivated or marked as lost. Please contact support.');
+    showView('loginScreen');
+    return;
   }
   
   if (!STATE.currentUser) {
