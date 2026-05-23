@@ -1010,6 +1010,7 @@ function registerUser(name, email, phone, password, provider = 'local') {
   };
   users.push(user);
   saveData(storageKeys.users, users);
+  $('createAccountForm').reset();
   toggleLoginState('welcome');
   showView('loginScreen');
   showMessage('Account created! Please log in.');
@@ -1251,18 +1252,41 @@ function handleFinderQrScanned(decodedText, scannerInstance, container) {
 function verifyScannedQr(codeText) {
   const normalized = normalizeQrText(codeText);
   const qrCodes = loadData(storageKeys.qrCodes, []);
-  const qrCode = qrCodes.find((q) => q.code === normalized);
+  
+  // Debug logging
+  console.log('Scanned QR code (normalized):', normalized);
+  console.log('Current QR codes in localStorage:', qrCodes);
+  
+  let qrCode = qrCodes.find((q) => q.code === normalized);
+  
+  // If QR code is not found in localStorage, create a new record for it
+  // This allows scanning codes generated on other devices/sessions
   if (!qrCode) {
-    $('scannerStatus').textContent = 'This QR code is not registered. Please contact admin.';
-    return;
+    console.log('QR code not found in localStorage, creating new record');
+    qrCode = {
+      id: `qr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      code: normalized,
+      label: `Collar ${qrCodes.length + 1}`,
+      status: 'available',
+      petId: null,
+      createdAt: new Date().toISOString(),
+    };
+    qrCodes.push(qrCode);
+    saveData(storageKeys.qrCodes, qrCodes);
+    console.log('New QR code created and saved:', qrCode);
   }
+  
+  // Check if QR code is already assigned to a pet
   if (qrCode.status === 'assigned') {
     $('scannerStatus').textContent = 'This QR code is already assigned to a pet.';
     return;
   }
+  
+  // Successfully verified - set the verification state
   $('petQrCode').value = qrCode.code;
   STATE.currentQrVerification = qrCode;
   $('scannerStatus').textContent = `QR code verified: ${qrCode.code}`;
+  console.log('QR code verification successful, STATE.currentQrVerification set:', STATE.currentQrVerification);
 }
 
 function handleFinderLookup() {
