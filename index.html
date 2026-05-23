@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PawsQR</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.7/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="brand">PawsQR</div>
+      <nav id="userNav" class="top-nav hidden">
+        <button id="navMyPets">My Pets</button>
+        <button id="navRegisterPet">Register Pet</button>
+        <button id="navMyHistory">My History</button>
+        <button id="navFinder">Finder View</button>
+        <button id="btnLogoutUser" class="logout">Logout</button>
+      </nav>
+
+      <nav id="adminNav" class="top-nav hidden">
+        <button id="navAdminOwners">Pet Owners</button>
+        <button id="navAdminPets">Registered Pets</button>
+        <button id="navAdminScans">Scan History</button>
+        <button id="navAdminQrStatus">QR Status</button>
+        <button id="navAdminPanel">Admin Panel</button>
+        <button id="btnLogoutAdmin" class="logout">Logout</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="loginScreen" class="view active login-screen-orange">
+        <!-- Welcome Landing State (Default) -->
+        <div id="loginWelcomeState" class="login-state-wrapper welcome-state">
+          <!-- Header Bar -->
+          <div class="login-header-bar">
+            <div class="spacer"></div>
+            <button id="loginToggleButton" class="login-toggle-btn">LOG IN</button>
+          </div>
+
+          <!-- Welcome Content -->
+          <div class="welcome-content">
+            <div class="welcome-text-section">
+              <h1 class="welcome-title">WELCOME TO PAWSQR</h1>
+              <button id="showCreateAccount" class="pill-button yellow-pill">Create Account</button>
+            </div>
+
+            <!-- Phone + Collar Illustration Placeholder -->
+            <div class="welcome-illustration">
+              <div class="placeholder-image">
+                📱 + 🎫
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Icons -->
+          <div class="welcome-footer-icons">
+            <span class="footer-icon">🐾</span>
+            <span class="footer-icon">📲</span>
+          </div>
+        </div>
+
+        <!-- Login Form State (Hidden by default) -->
+        <div id="loginFormState" class="login-state-wrapper form-state hidden">
+          <button id="backToWelcome" class="back-arrow-btn">← Back</button>
+
+          <div class="login-form-card">
+            <h2 class="form-title">LOGIN FORM</h2>
+
+            <form id="loginForm" class="form-grid">
+              <label class="form-label">EMAIL<input type="email" id="loginEmail" required /></label>
+              <label class="form-label">PASSWORD<input type="password" id="loginPassword" required /></label>
+              <button type="submit" class="pill-button yellow-pill bold-uppercase">LOGIN</button>
+            </form>
+
+            <div class="divider">or continue with</div>
+
+            <div class="social-buttons">
+              <button id="btnGoogle" class="social gmail">Continue with Google</button>
+              <button id="btnFacebook" class="social facebook">Continue with Facebook</button>
+            </div>
+
+            <p class="create-link-text">New to PawsQR? <a href="#" id="linkCreateAccount">Create Account</a></p>
+          </div>
+        </div>
+      </section>
+
+      <section id="createAccountScreen" class="view hidden">
+        <div class="card">
+          <h1>Create Account</h1>
+          <form id="createAccountForm" class="form-grid">
+            <label>Full Name<input type="text" id="createName" required /></label>
+            <label>Email<input type="email" id="createEmail" required /></label>
+            <label>Phone Number<input type="tel" id="createPhone" required /></label>
+            <label>Password<input type="password" id="createPassword" required minlength="8" /></label>
+            <button type="submit" class="primary">Create Account</button>
+          </form>
+          <button id="backToLogin" class="secondary">Back to Login</button>
+        </div>
+      </section>
+
+      <section id="dashboardScreen" class="view hidden">
+        <div class="page-header">
+          <div>
+            <h2>Pet Dashboard</h2>
+            <p>Manage your pets, collar QR codes, and health records.</p>
+          </div>
+          <button id="btnAddPet" class="primary">Register New Pet</button>
+        </div>
+        <div class="dashboard-grid">
+          <div class="panel">
+            <h3>My QR Collar Codes</h3>
+            <div id="userQrList" class="qr-grid"></div>
+          </div>
+          <div class="panel">
+            <h3>My Pets</h3>
+            <div id="petCardList" class="pet-grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="petFormScreen" class="view hidden">
+        <div class="card">
+          <h1 id="petFormTitle">Register Pet</h1>
+          <form id="petForm" class="form-grid">
+            <input type="hidden" id="editingPetId" />
+            <label>Pet Name<input type="text" id="petName" required /></label>
+            <label>Age<input type="text" id="petAge" placeholder="e.g. 3 years" required /></label>
+            <label>Breed<input type="text" id="petBreed" required /></label>
+              <label>Pet Photo
+                <input type="file" id="petPhotoFile" accept="image/*" capture="environment" />
+              </label>
+              <div class="photo-preview">
+                <img id="petPhotoPreview" alt="Pet preview" />
+              </div>
+              <input type="hidden" id="petPhoto" />
+            <label>Identifying Characteristics<textarea id="petCharacteristics" rows="2" required></textarea></label>
+            <label>Allergies<textarea id="petAllergies" rows="2"></textarea></label>
+            <label>Medications<textarea id="petMedications" rows="2"></textarea></label>
+            <label>Immunization Status<textarea id="petImmunizations" rows="2"></textarea></label>
+            <div class="scan-section">
+              <strong>Scan QR collar to verify code</strong>
+              <div id="scannerStatus">No QR code scanned yet.</div>
+              <button type="button" id="btnScanQr" class="secondary">Scan QR Code</button>
+              <div id="scannerContainer" class="scanner-container hidden"></div>
+            </div>
+            <label class="hidden">QR Code<input type="text" id="petQrCode" readonly /></label>
+            <button type="submit" class="primary">Save Pet</button>
+          </form>
+          <button id="cancelPetForm" class="secondary">Cancel</button>
+        </div>
+      </section>
+
+      <section id="historyScreen" class="view hidden">
+        <div class="card">
+          <h1>My Scan History</h1>
+          <div id="historyList" class="history-list"></div>
+          <button id="historyBack" class="secondary">Back to Dashboard</button>
+        </div>
+      </section>
+
+      <section id="finderScreen" class="view hidden">
+        <div class="card finder-card">
+          <h1>Finder Interface</h1>
+          <p>Enter the collar QR code or use the scanner to locate the pet details and contact the owner.</p>
+          <div class="finder-controls">
+            <input type="text" id="finderQrInput" placeholder="Enter collar QR code" />
+            <button id="finderLookUp" class="primary">Lookup Pet</button>
+            <button id="finderScan" class="secondary">Scan QR Code</button>
+          </div>
+          <div id="finderScannerContainer" class="scanner-container hidden"></div>
+          <div id="finderResult" class="finder-result"></div>
+          <button id="finderBack" class="secondary">Back</button>
+        </div>
+      </section>
+
+      <section id="adminPanelScreen" class="view hidden">
+        <div class="card">
+          <h1>Admin Panel</h1>
+          <p>Master Admin can generate collar QR codes and review system history.</p>
+          <div class="form-grid" style="max-width:300px;">
+            <label>How many QR codes to generate?
+              <input type="number" id="batchCount" min="1" value="1" />
+            </label>
+            <button id="btnGenerateBatch" class="primary">Generate New Collar QR</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="adminOwnersScreen" class="view hidden">
+        <div class="card">
+          <h1>Pet Owners</h1>
+          <div class="admin-toolbar"><button id="btnOwnersRecent" class="secondary">Show Recent</button><button id="btnOwnersAll" class="secondary">Show All</button></div>
+          <div id="adminPetOwners" class="history-list"></div>
+        </div>
+      </section>
+
+      <section id="adminPetsScreen" class="view hidden">
+        <div class="card">
+          <h1>Registered Pets</h1>
+          <div class="admin-toolbar"><button id="btnPetsRecent" class="secondary">Show Recent</button><button id="btnPetsAll" class="secondary">Show All</button></div>
+          <div id="adminRegisteredPets" class="pet-grid"></div>
+        </div>
+      </section>
+
+      <section id="adminScansScreen" class="view hidden">
+        <div class="card">
+          <h1>Scan History</h1>
+          <div class="admin-toolbar"><button id="btnScansRecent" class="secondary">Show Recent</button><button id="btnScansAll" class="secondary">Show All</button></div>
+          <div id="adminScanHistory" class="history-list"></div>
+        </div>
+      </section>
+
+      <section id="adminQrCodesScreen" class="view hidden">
+        <div class="card">
+          <h1>Available Collar QR Codes</h1>
+          <p>Use the buttons below to filter and manage collar QR codes. Generated codes are ready for printing and distribution.</p>
+          <div class="admin-toolbar">
+            <button id="btnQrAvailable" class="secondary">Available Only</button>
+            <button id="btnQrAll" class="secondary">Show All</button>
+          </div>
+          <div id="adminQrCodesList" class="qr-grid"></div>
+          <div class="page-header" style="margin-top:24px;">
+            <div>
+              <h3>Generate More Codes</h3>
+              <p>Create additional collar QR codes for new pets.</p>
+            </div>
+            <button id="btnGenerateMore" class="primary">Generate New Batch</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="adminQrStatusScreen" class="view hidden">
+        <div class="card">
+          <h1>QR Collar Assignment Status</h1>
+          <div class="qr-status-summary">
+            <h3>Assignment Breakdown</h3>
+            <div class="progress-container">
+              <div class="progress-bar" id="qrProgressBar"></div>
+              <div class="progress-legend" id="qrProgressLegend"></div>
+            </div>
+          </div>
+
+          <div class="qr-status-table-container">
+            <h3>QR Collar Codes</h3>
+            <table class="qr-status-table">
+              <thead>
+                <tr>
+                  <th>CODE ID</th>
+                  <th>STATUS</th>
+                  <th>ASSIGNED PET</th>
+                  <th>OWNER</th>
+                  <th>SCANS</th>
+                </tr>
+              </thead>
+              <tbody id="qrStatusTableBody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

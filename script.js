@@ -1,0 +1,1473 @@
+const STATE = {
+  currentUser: null,
+  currentQrVerification: null,
+  pendingQrCode: null,
+  finderScanner: null,
+  petScanner: null,
+  loginScanner: null,
+};
+
+const MASTER_ADMIN = {
+  id: 'admin-1',
+  name: 'Master Admin',
+  email: 'admin@petnetwork.com',
+  password: 'MasterAdmin!2026',
+  role: 'admin',
+  provider: 'local',
+  phone: '+1-800-555-0101',
+};
+
+// Third-party Provider IDs (set these in production)
+const FACEBOOK_APP_ID = 'YOUR_FACEBOOK_APP_ID';
+// Google OAuth2 Configuration
+// Replace with your actual Google Client ID from Google Cloud Console
+const GOOGLE_CLIENT_ID = '1234567890-abcdefghijklmnop.apps.googleusercontent.com';
+// NOTE: For production, store CLIENT_ID securely and use backend validation of tokens
+
+const storageKeys = {
+  users: 'petnet_users',
+  pets: 'petnet_pets',
+  qrCodes: 'petnet_qr_codes',
+  history: 'petnet_history',
+};
+
+let QR_BASE_URL = '';
+
+function $(id) {
+  return document.getElementById(id);
+}
+
+function loadData(key, fallback) {
+  const raw = localStorage.getItem(key);
+  return raw ? JSON.parse(raw) : fallback;
+}
+
+function saveData(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function initializeStorage() {
+  const users = loadData(storageKeys.users, []);
+  const existingAdmin = users.find((user) => user.role === 'admin');
+  if (!existingAdmin) {
+    users.push(MASTER_ADMIN);
+    saveData(storageKeys.users, users);
+  }
+  if (!localStorage.getItem(storageKeys.pets)) {
+    saveData(storageKeys.pets, []);
+  }
+  if (!localStorage.getItem(storageKeys.qrCodes)) {
+    saveData(storageKeys.qrCodes, []);
+  }
+  if (!localStorage.getItem(storageKeys.history)) {
+    saveData(storageKeys.history, []);
+  }
+}
+
+function showView(viewId) {
+  document.querySelectorAll('.view').forEach((view) => {
+    view.classList.remove('active');
+    view.classList.add('hidden');
+  });
+  const target = $(viewId);
+  target.classList.remove('hidden');
+  target.classList.add('active');
+  
+  // Reset all nav button highlights
+  document.querySelectorAll('.top-nav button').forEach((btn) => {
+    btn.classList.remove('active-nav');
+  });
+}
+
+function setNavigation() {
+  const userNav = $('userNav');
+  const adminNav = $('adminNav');
+  if (!STATE.currentUser) {
+    if (userNav) userNav.classList.add('hidden');
+    if (adminNav) adminNav.classList.add('hidden');
+    return;
+  }
+  const isAdmin = STATE.currentUser.role === 'admin';
+  if (isAdmin) {
+    if (adminNav) adminNav.classList.remove('hidden');
+    if (userNav) userNav.classList.add('hidden');
+  } else {
+    if (userNav) userNav.classList.remove('hidden');
+    if (adminNav) adminNav.classList.add('hidden');
+  }
+}
+
+function showMessage(message) {
+  alert(message);
+}
+
+function secureRandomCode() {
+  const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(6)))
+    .map((n) => ('0' + (n % 36).toString(36)).slice(-2))
+    .join('').toUpperCase();
+  return `PN-${randomPart}`;
+}
+
+function getQrPayload(rawCode) {
+  if (!QR_BASE_URL) {
+    return rawCode;
+  }
+  const path = window.location.pathname || '/';
+  return `${QR_BASE_URL}${path}?qr=${encodeURIComponent(rawCode)}`;
+}
+
+function getLocalIpCandidates() {
+  return new Promise((resolve) => {
+    const ips = new Set();
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    pc.createDataChannel('');
+    pc.onicecandidate = (event) => {
+      if (!event.candidate) {
+        pc.close();
+        resolve(Array.from(ips));
+        return;
+      }
+      const parts = event.candidate.candidate.split(' ');
+      const ip = parts[4];
+      if (ip && !ips.has(ip)) {
+        ips.add(ip);
+      }
+    };
+    pc.createOffer().then((offer) => pc.setLocalDescription(offer)).catch(() => resolve([]));
+  });
+}
+
+function isLocalHost(origin) {
+  const lower = origin.toLowerCase();
+  return lower.includes('127.0.0.1') || lower.includes('localhost');
+}
+
+async function prepareQrBaseUrl() {
+  // Priority 1: explicit override from hosting environment (useful for ngrok or production)
+  if (window.PETNET_BASE_URL) {
+    QR_BASE_URL = window.PETNET_BASE_URL.replace(/\/$/, '');
+    return;
+  }
+
+  const origin = window.location.origin || '';
+  // Avoid using machine-local hostnames that won't resolve on mobile (.local or custom hostnames)
+  if (origin && !isLocalHost(origin) && !origin.includes('.local')) {
+    QR_BASE_URL = origin;
+    return;
+  }
+
+  // Try to find a LAN IP candidate (IPv4) as a fallback for testing on same Wi-Fi network
+  const localIps = await getLocalIpCandidates();
+  const fallbackIp = localIps.find((ip) => ip && !ip.startsWith('127.') && !ip.startsWith('169.') && !ip.includes(':'));
+  if (fallbackIp) {
+    const port = window.location.port ? `:${window.location.port}` : '';
+    QR_BASE_URL = `${window.location.protocol}//${fallbackIp}${port}`;
+    return;
+  }
+
+  // If we couldn't determine a usable URL, leave empty and warn the developer
+  QR_BASE_URL = '';
+  console.warn('QR_BASE_URL not set. For mobile scanning, set window.PETNET_BASE_URL to an accessible URL (e.g. http://192.168.1.X:5500) or use a tunnel like ngrok.');
+}
+
+function normalizeQrText(scannedText) {
+  const trimmed = scannedText.trim();
+  try {
+    const url = new URL(trimmed);
+    const payload = url.searchParams.get('qr');
+    if (payload) {
+      return payload;
+    }
+  } catch (error) {
+    // not a URL, continue
+  }
+  const match = trimmed.match(/[?&]qr=([^&]+)/i);
+  return match ? decodeURIComponent(match[1]) : trimmed;
+}
+
+function createQRCodeElement(container, text, label = 'QR Code') {
+  container.innerHTML = '';
+  const holder = document.createElement('div');
+  holder.className = 'qr-card';
+  const title = document.createElement('h4');
+  title.textContent = label;
+  const codeHolder = document.createElement('div');
+  const qrNode = document.createElement('div');
+  qrNode.className = 'qr-image';
+  codeHolder.appendChild(qrNode);
+  new QRCode(qrNode, {
+    text: getQrPayload(text),
+    width: 260,
+    height: 260,
+    colorDark: '#14213d',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H,
+  });
+  const codeText = document.createElement('small');
+  codeText.textContent = text;
+  const printButton = document.createElement('button');
+  printButton.className = 'secondary';
+  printButton.textContent = 'Print QR Code';
+  printButton.addEventListener('click', () => {
+    const printWindow = window.open('', '_blank', 'width=450,height=600');
+    printWindow.document.write('<html><head><title>Print QR Code</title>');
+    printWindow.document.write('<style>body{margin:0;padding:20px;font-family:sans-serif;} img{width:100%;max-width:300px;display:block;margin:0 auto;} div{text-align:center;margin-top:12px;font-weight:700;}</style>');
+    printWindow.document.write('</head><body>');
+    printWindow.document.write(codeHolder.innerHTML);
+    printWindow.document.write(`<div>${text}</div>`);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  });
+  holder.append(title, codeHolder, codeText, printButton);
+  container.appendChild(holder);
+}
+
+function renderUserDashboard() {
+  const pets = loadData(storageKeys.pets, []);
+  const qrCodes = loadData(storageKeys.qrCodes, []);
+  const myPets = pets.filter((pet) => pet.ownerId === STATE.currentUser.id);
+  const myCodes = qrCodes.filter((qr) => qr.status === 'assigned' && myPets.some((pet) => pet.qrCodeId === qr.id));
+  const userQrList = $('userQrList');
+  const petCardList = $('petCardList');
+  userQrList.innerHTML = '';
+  petCardList.innerHTML = '';
+
+  if (!myCodes.length) {
+    userQrList.innerHTML = '<p>No assigned collars yet. Register a pet after scanning a QR code.</p>';
+  }
+
+  myCodes.forEach((qr) => {
+    const container = document.createElement('div');
+    createQRCodeElement(container, qr.code, `Collar ${qr.label || qr.id}`);
+    const notice = document.createElement('small');
+    notice.textContent = 'Assigned to your pet';
+    container.querySelector('button').before(notice);
+    userQrList.appendChild(container);
+  });
+
+  if (!myPets.length) {
+    petCardList.innerHTML = '<p>You have no registered pets yet.</p>';
+  }
+
+  myPets.forEach((pet) => {
+    const card = document.createElement('div');
+    card.className = 'pet-card';
+    const image = document.createElement('img');
+    image.src = pet.photo;
+    image.alt = pet.name;
+    const title = document.createElement('h4');
+    title.textContent = pet.name;
+    const details = document.createElement('p');
+    details.innerHTML = `<strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
+    const label = document.createElement('small');
+    const code = loadData(storageKeys.qrCodes, []).find((qr) => qr.id === pet.qrCodeId);
+    label.textContent = `Collar: ${code ? code.code : 'Not assigned'}`;
+    const health = document.createElement('p');
+    health.innerHTML = `<strong>Allergies:</strong> ${pet.allergies || 'None'}<br><strong>Medications:</strong> ${pet.medications || 'None'}<br><strong>Immunizations:</strong> ${pet.immunizations || 'Unspecified'}`;
+    const actions = document.createElement('div');
+    actions.style.display = 'flex';
+    actions.style.gap = '10px';
+    const editButton = document.createElement('button');
+    editButton.className = 'primary';
+    editButton.textContent = 'Edit';
+    editButton.addEventListener('click', () => editPet(pet.id));
+    const printButton = document.createElement('button');
+    printButton.className = 'secondary';
+    printButton.textContent = 'Print Profile';
+    printButton.addEventListener('click', () => {
+      const win = window.open('', '_blank');
+      win.document.write('<html><head><title>Pet Profile</title><style>body{font-family:sans-serif;padding:24px;}img{max-width:100%;border-radius:16px;} h1,h2{margin-top:0;}</style></head><body>');
+      win.document.write(`<h1>${pet.name}</h1><img src="${pet.photo}" alt="${pet.name}"/><p><strong>Breed:</strong> ${pet.breed}</p><p><strong>Age:</strong> ${pet.age}</p><p><strong>Characteristics:</strong> ${pet.characteristics}</p><p><strong>Allergies:</strong> ${pet.allergies || 'None'}</p><p><strong>Medications:</strong> ${pet.medications || 'None'}</p><p><strong>Immunizations:</strong> ${pet.immunizations || 'Unspecified'}</p><p><strong>Collar ID:</strong> ${code ? code.code : 'Not assigned'}</p>`);
+      win.document.write('</body></html>');
+      win.document.close();
+      win.print();
+    });
+    actions.append(editButton, printButton);
+    card.append(image, title, details, label, health, actions);
+    petCardList.appendChild(card);
+  });
+}
+
+function renderAdminPanel() {
+  showView('adminQrCodesScreen');
+  renderAdminQrCodes(false);
+}
+
+function renderAdminOwners(recentOnly = false) {
+  const users = loadData(storageKeys.users, []).slice().reverse();
+  const container = $('adminPetOwners');
+  if (!container) return;
+  container.innerHTML = '';
+  const list = users.filter(u => u.role !== 'admin');
+  const items = recentOnly ? list.slice(0, 8) : list;
+  if (!items.length) {
+    container.innerHTML = '<p>No registered pet owners yet.</p>';
+    return;
+  }
+  items.forEach((u) => {
+    const card = document.createElement('div');
+    card.className = 'history-card';
+    const title = document.createElement('h4');
+    title.textContent = u.name;
+    const details = document.createElement('p');
+    details.innerHTML = `<strong>Email:</strong> ${u.email}<br><strong>Phone:</strong> ${u.phone || 'N/A'}<br><strong>Provider:</strong> ${u.provider || 'local'}<br><strong>Role:</strong> ${u.role}`;
+    card.append(title, details);
+    container.appendChild(card);
+  });
+}
+
+function renderAdminRegisteredPets(recentOnly = false) {
+  const pets = loadData(storageKeys.pets, []).slice().reverse();
+  const container = $('adminRegisteredPets');
+  if (!container) return;
+  container.innerHTML = '';
+  const items = recentOnly ? pets.slice(0, 8) : pets;
+  if (!items.length) {
+    container.innerHTML = '<p>No registered pets yet.</p>';
+    return;
+  }
+  items.forEach((pet) => {
+    const card = document.createElement('div');
+    card.className = 'pet-card';
+    const image = document.createElement('img');
+    image.src = pet.photo;
+    image.alt = pet.name;
+    const title = document.createElement('h4');
+    title.textContent = pet.name;
+    const owner = loadData(storageKeys.users, []).find(u => u.id === pet.ownerId);
+    const details = document.createElement('p');
+    details.innerHTML = `<strong>Owner:</strong> ${owner ? owner.name : 'Unknown'}<br><strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
+    card.append(image, title, details);
+    container.appendChild(card);
+  });
+}
+
+function renderAdminScanHistory(recentOnly = false) {
+  const history = loadData(storageKeys.history, []).slice().reverse();
+  const container = $('adminScanHistory');
+  if (!container) return;
+  container.innerHTML = '';
+  const scans = history.filter(h => /(scan|finder|lookup)/i.test(h.action) || /(scan)/i.test(h.action));
+  const items = recentOnly ? scans.slice(0, 12) : scans;
+  if (!items.length) {
+    container.innerHTML = '<p>No scan records available.</p>';
+    return;
+  }
+  items.forEach((event) => {
+    const card = document.createElement('div');
+    card.className = 'history-card';
+    const user = loadData(storageKeys.users, []).find(u => u.id === event.userId);
+    const pet = loadData(storageKeys.pets, []).find(p => p.id === event.petId);
+    const title = document.createElement('h4');
+    title.textContent = `${event.action}`;
+    const details = document.createElement('p');
+    details.innerHTML = `<strong>User:</strong> ${user ? user.name : 'Unknown'}<br><strong>Pet:</strong> ${pet ? pet.name : 'N/A'}<br><strong>QR:</strong> ${event.qrCodeText}<br><strong>Time:</strong> ${new Date(event.timestamp).toLocaleString()}`;
+    card.append(title, details);
+    container.appendChild(card);
+  });
+}
+
+function renderAdminQrCodes(availableOnly = false) {
+  const qrCodes = loadData(storageKeys.qrCodes, []).slice().reverse();
+  const container = $('adminQrCodesList');
+  if (!container) return;
+  container.innerHTML = '';
+  const items = availableOnly ? qrCodes.filter(qr => qr.status === 'available') : qrCodes;
+  if (!items.length) {
+    container.innerHTML = '<p>No QR codes available.</p>';
+    return;
+  }
+  items.forEach((qr) => {
+    const cardContainer = document.createElement('div');
+    cardContainer.style.display = 'flex';
+    cardContainer.style.flexDirection = 'column';
+    cardContainer.style.gap = '8px';
+    createQRCodeElement(cardContainer, qr.code, `Collar ${qr.label || qr.code}`);
+    const statusBadge = document.createElement('small');
+    statusBadge.style.padding = '4px 8px';
+    statusBadge.style.borderRadius = '4px';
+    statusBadge.style.fontSize = '12px';
+    statusBadge.style.fontWeight = '600';
+    if (qr.status === 'available') {
+      statusBadge.textContent = '✓ Available';
+      statusBadge.style.backgroundColor = '#d4edda';
+      statusBadge.style.color = '#155724';
+    } else {
+      statusBadge.textContent = '✓ Assigned';
+      statusBadge.style.backgroundColor = '#e2e3e5';
+      statusBadge.style.color = '#383d41';
+    }
+    cardContainer.appendChild(statusBadge);
+    container.appendChild(cardContainer);
+  });
+}
+
+function renderAdminQrStatus() {
+  const qrCodes = loadData(storageKeys.qrCodes, []);
+  const pets = loadData(storageKeys.pets, []);
+  const users = loadData(storageKeys.users, []);
+  const history = loadData(storageKeys.history, []);
+
+  // Count statuses
+  const statusCounts = {
+    active: 0,        // assigned
+    unassigned: 0,    // available
+    deactivated: 0,
+    lost: 0,
+  };
+
+  qrCodes.forEach((qr) => {
+    if (qr.status === 'assigned') {
+      statusCounts.active += 1;
+    } else if (qr.status === 'available') {
+      statusCounts.unassigned += 1;
+    } else if (qr.status === 'deactivated') {
+      statusCounts.deactivated += 1;
+    } else if (qr.status === 'lost') {
+      statusCounts.lost += 1;
+    }
+  });
+
+  const totalCollars = qrCodes.length;
+
+  // Render progress bar
+  const progressBar = $('qrProgressBar');
+  progressBar.innerHTML = '';
+  if (totalCollars > 0) {
+    const statusOrder = ['active', 'unassigned', 'deactivated', 'lost'];
+    statusOrder.forEach((status) => {
+      const count = statusCounts[status];
+      if (count > 0) {
+        const percentage = (count / totalCollars) * 100;
+        const segment = document.createElement('div');
+        segment.className = `progress-segment ${status}`;
+        segment.style.width = `${percentage}%`;
+        segment.textContent = `${count}`;
+        progressBar.appendChild(segment);
+      }
+    });
+  }
+
+  // Render legend
+  const legendContainer = $('qrProgressLegend');
+  legendContainer.innerHTML = '';
+  const legendItems = [
+    { label: '🟢 Active / Assigned', status: 'active', count: statusCounts.active },
+    { label: '🟠 Unassigned', status: 'unassigned', count: statusCounts.unassigned },
+    { label: '⚫ Deactivated', status: 'deactivated', count: statusCounts.deactivated },
+    { label: '🔴 Lost Status', status: 'lost', count: statusCounts.lost },
+  ];
+
+  legendItems.forEach((item) => {
+    const legendItem = document.createElement('div');
+    legendItem.className = 'legend-item';
+    const dot = document.createElement('div');
+    dot.className = `legend-dot ${item.status}`;
+    const text = document.createElement('div');
+    text.className = 'legend-text';
+    const label = document.createElement('span');
+    label.textContent = item.label;
+    const count = document.createElement('span');
+    count.style.fontWeight = '700';
+    const pct = totalCollars > 0 ? ((item.count / totalCollars) * 100).toFixed(1) : 0;
+    count.textContent = `${item.count} (${pct}%)`;
+    text.append(label, count);
+    legendItem.append(dot, text);
+    legendContainer.appendChild(legendItem);
+  });
+
+  // Add total collars item
+  const totalItem = document.createElement('div');
+  totalItem.className = 'legend-item';
+  const totalLabel = document.createElement('span');
+  totalLabel.style.fontWeight = '700';
+  totalLabel.textContent = 'Total Collars';
+  const totalCount = document.createElement('span');
+  totalCount.style.fontWeight = '700';
+  totalCount.textContent = totalCollars.toString();
+  totalItem.append(totalLabel, totalCount);
+  legendContainer.appendChild(totalItem);
+
+  // Render table
+  const tableBody = $('qrStatusTableBody');
+  tableBody.innerHTML = '';
+
+  if (!qrCodes.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="5" style="text-align:center;padding:20px;">No QR codes found.</td>';
+    tableBody.appendChild(row);
+    return;
+  }
+
+  qrCodes.forEach((qr) => {
+    const row = document.createElement('tr');
+    
+    // CODE ID
+    const codeCell = document.createElement('td');
+    codeCell.textContent = qr.code;
+    codeCell.style.fontWeight = '600';
+    
+    // STATUS
+    const statusCell = document.createElement('td');
+    const statusText = qr.status === 'assigned' ? 'Active' : 
+                       qr.status === 'available' ? 'Unassigned' :
+                       qr.status === 'deactivated' ? 'Deactivated' :
+                       qr.status === 'lost' ? 'Lost Status' : qr.status;
+    const statusBadge = document.createElement('span');
+    statusBadge.className = `status-badge ${qr.status === 'assigned' ? 'active' : qr.status === 'available' ? 'unassigned' : qr.status}`;
+    statusBadge.textContent = statusText;
+    statusCell.appendChild(statusBadge);
+    
+    // ASSIGNED PET
+    const petCell = document.createElement('td');
+    if (qr.petId) {
+      const pet = pets.find((p) => p.id === qr.petId);
+      petCell.textContent = pet ? pet.name : 'N/A';
+    } else {
+      petCell.textContent = '—';
+      petCell.style.color = '#999';
+    }
+    
+    // OWNER
+    const ownerCell = document.createElement('td');
+    if (qr.petId) {
+      const pet = pets.find((p) => p.id === qr.petId);
+      if (pet) {
+        const owner = users.find((u) => u.id === pet.ownerId);
+        ownerCell.textContent = owner ? owner.name : 'Unknown';
+      } else {
+        ownerCell.textContent = '—';
+        ownerCell.style.color = '#999';
+      }
+    } else {
+      ownerCell.textContent = '—';
+      ownerCell.style.color = '#999';
+    }
+    
+    // SCANS
+    const scansCell = document.createElement('td');
+    const scanCount = history.filter((h) => h.qrCodeText === qr.code).length;
+    scansCell.textContent = scanCount.toString();
+    scansCell.style.fontWeight = '600';
+    
+    row.append(codeCell, statusCell, petCell, ownerCell, scansCell);
+    tableBody.appendChild(row);
+  });
+}
+
+function getUserByEmail(email) {
+  return loadData(storageKeys.users, []).find((user) => user.email.toLowerCase() === email.toLowerCase());
+}
+
+function getUsersByProvider(provider) {
+  return loadData(storageKeys.users, []).filter((user) => user.provider === provider.toLowerCase());
+}
+
+function loginSocialUser(provider) {
+  if (provider === 'Gmail') {
+    triggerGoogleSignIn();
+  } else if (provider === 'Facebook') {
+    triggerFacebookSignIn();
+  }
+}
+
+function triggerGoogleSignIn() {
+  if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+    showMessage('Google Sign-In service is not available. Please ensure Google Identity Services library is loaded.');
+    return;
+  }
+
+  try {
+    // Ensure we don't auto-select an already signed-in account
+    if (google.accounts.id.disableAutoSelect) google.accounts.id.disableAutoSelect();
+
+    // Try One Tap first; if it doesn't display, render a popup button and open it
+    google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+        // If One Tap doesn't show, fall back to programmatic popup sign-in
+        let btn = document.getElementById('petnet-google-btn');
+        if (!btn) {
+          btn = document.createElement('div');
+          btn.id = 'petnet-google-btn';
+          btn.style.position = 'fixed';
+          btn.style.left = '-9999px';
+          document.body.appendChild(btn);
+        }
+        google.accounts.id.renderButton(
+          btn,
+          { type: 'standard', size: 'large', theme: 'outline', text: 'signin_with' }
+        );
+        // Click the hidden button to open the popup chooser
+        setTimeout(() => {
+          const rendered = btn.querySelector('button');
+          if (rendered) rendered.click();
+        }, 100);
+      }
+    });
+  } catch (error) {
+    console.error('Google Sign-In error:', error);
+    showMessage('Google Sign-In failed. Please try again.');
+  }
+}
+
+function handleGoogleSignInResponse(response) {
+  if (!response.credential) {
+    showMessage('Google Sign-In was cancelled. Please try again.');
+    return;
+  }
+
+  try {
+    // Decode JWT token to extract user profile
+    const decodedToken = parseJwt(response.credential);
+    const email = decodedToken.email;
+    const name = decodedToken.name;
+    const picture = decodedToken.picture;
+    const googleUserId = decodedToken.sub;
+
+    // Check if user already exists
+    let user = getUserByEmail(email);
+    if (user) {
+      // Existing user: log them in
+      saveCurrentUser(user);
+      setNavigation();
+      if (user.role === 'admin') {
+        location.hash = 'admin';
+        renderAdminPanel();
+      } else {
+        routeAfterLogin();
+      }
+    } else {
+      // New user: prompt for phone number, then create account
+      const phone = prompt('Welcome! Please enter your phone number for owner contact:');
+      if (!phone) {
+        showMessage('Phone number is required to create an account.');
+        return;
+      }
+
+      const fakePassword = `google-${googleUserId}`;
+      const newUser = {
+        id: `user-${Date.now()}`,
+        name,
+        email,
+        phone,
+        password: fakePassword,
+        role: 'user',
+        provider: 'google',
+        picture,
+      };
+
+      const users = loadData(storageKeys.users, []);
+      users.push(newUser);
+      saveData(storageKeys.users, users);
+      saveCurrentUser(newUser);
+      setNavigation();
+      routeAfterLogin();
+    }
+  } catch (error) {
+    console.error('Error processing Google Sign-In:', error);
+    showMessage('Failed to process Google Sign-In. Please try again.');
+  }
+}
+
+function parseJwt(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('JWT parsing error:', error);
+    throw new Error('Invalid token format');
+  }
+}
+
+function initGoogleSignIn() {
+  if (!window.google) {
+    console.warn('Google Identity Services library not yet loaded.');
+    return;
+  }
+
+  try {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleSignInResponse,
+      auto_select: false, // Disable auto-select to require user action
+      ux_mode: 'popup', // Use popup instead of redirect
+    });
+  } catch (error) {
+    console.error('Google Sign-In initialization error:', error);
+  }
+}
+
+// Initialize Facebook SDK (client-side). Set `FACEBOOK_APP_ID` above.
+function initFacebookSdk() {
+  if (!FACEBOOK_APP_ID || FACEBOOK_APP_ID === 'YOUR_FACEBOOK_APP_ID') {
+    console.warn('Facebook App ID not configured. Facebook Sign-In will be disabled until FACEBOOK_APP_ID is set.');
+    return;
+  }
+
+  // Load Facebook SDK asynchronously if not already present
+  if (window.FB) {
+    return;
+  }
+
+  window.fbAsyncInit = function () {
+    FB.init({
+      appId: FACEBOOK_APP_ID,
+      cookie: true,
+      xfbml: false,
+      version: 'v16.0',
+    });
+  };
+
+  (function (d, s, id) {
+    const fjs = d.getElementsByTagName(s)[0];
+    if (d.getElementById(id)) return;
+    const js = d.createElement(s);
+    js.id = id;
+    js.src = 'https://connect.facebook.net/en_US/sdk.js';
+    fjs.parentNode.insertBefore(js, fjs);
+  }(document, 'script', 'facebook-jssdk'));
+}
+
+function triggerFacebookSignIn() {
+  if (!window.FB) {
+    showMessage('Facebook SDK not loaded. Please try again shortly.');
+    return;
+  }
+
+  // Request login; allow account chooser in the popup
+  FB.login((resp) => {
+    if (resp.status === 'connected' && resp.authResponse) {
+      handleFacebookSignInResponse(resp.authResponse);
+    } else {
+      showMessage('Facebook sign-in was cancelled or failed.');
+    }
+  }, { scope: 'email', return_scopes: true });
+}
+
+function handleFacebookSignInResponse(authResponse) {
+  FB.api('/me', { fields: 'id,name,email' }, function (profile) {
+    if (!profile || !profile.email) {
+      showMessage('Unable to retrieve email from Facebook. Please ensure you allow email access.');
+      return;
+    }
+    const email = profile.email;
+    const name = profile.name;
+    let user = getUserByEmail(email);
+    if (user) {
+      saveCurrentUser(user);
+      setNavigation();
+      if (user.role === 'admin') {
+        location.hash = 'admin';
+        renderAdminPanel();
+      } else {
+        routeAfterLogin();
+      }
+      return;
+    }
+
+    // New user flow
+    const phone = prompt('Welcome! Please enter your phone number for owner contact:');
+    if (!phone) {
+      showMessage('Phone number is required to create an account.');
+      return;
+    }
+    const newUser = {
+      id: `user-${Date.now()}`,
+      name,
+      email,
+      phone,
+      password: `facebook-${profile.id}`,
+      role: 'user',
+      provider: 'facebook',
+    };
+    const users = loadData(storageKeys.users, []);
+    users.push(newUser);
+    saveData(storageKeys.users, users);
+    saveCurrentUser(newUser);
+    setNavigation();
+    routeAfterLogin();
+  });
+}
+
+function setQrBaseUrl(url) {
+  if (!url) return;
+  QR_BASE_URL = url.replace(/\/$/, '');
+}
+
+function registerSocialUser(provider) {
+  const providerName = provider;
+  const email = prompt(`Enter your ${providerName} email address:`);
+  if (!email) return;
+
+  const existing = getUserByEmail(email);
+  if (existing) {
+    saveCurrentUser(existing);
+    setNavigation();
+    if (existing.role === 'admin') {
+      location.hash = 'admin';
+      renderAdminPanel();
+    } else {
+      location.hash = 'register';
+      beginPetRegistration();
+    }
+    return;
+  }
+
+  const name = prompt('Enter your full name:');
+  if (!name) return;
+  const phone = prompt('Enter your phone number for owner contact:');
+  if (!phone) return;
+  const fakePassword = `${providerName.toLowerCase()}-${Date.now()}`;
+  registerUser(name, email, phone, fakePassword, providerName.toLowerCase());
+}
+
+function saveCurrentUser(user) {
+  STATE.currentUser = user;
+  localStorage.setItem('petnet_session', JSON.stringify(user));
+}
+
+function loadSession() {
+  const raw = localStorage.getItem('petnet_session');
+  if (raw) {
+    const user = JSON.parse(raw);
+    const stored = loadData(storageKeys.users, []).find((u) => u.id === user.id);
+    if (stored) {
+      STATE.currentUser = stored;
+    }
+  }
+}
+
+function seedDemoData(user) {
+  const qrCodes = loadData(storageKeys.qrCodes, []);
+  const pets = loadData(storageKeys.pets, []);
+  if (qrCodes.length === 0) {
+    qrCodes.push({ id: 'qr-demo-1', code: 'PN-DEMO-QR-0001', label: 'Collar 001', status: 'assigned', petId: 'pet-demo-1', createdAt: new Date().toISOString() });
+    qrCodes.push({ id: 'qr-demo-2', code: 'PN-DEMO-QR-0002', label: 'Collar 002', status: 'available', petId: null, createdAt: new Date().toISOString() });
+    saveData(storageKeys.qrCodes, qrCodes);
+  }
+  if (user && pets.length === 0) {
+    pets.push({ id: 'pet-demo-1', ownerId: user.id, name: 'Luna', age: '2 years', breed: 'Siamese', photo: 'https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=800&q=80', characteristics: 'Blue eyes, white paws, small scar on ear', allergies: 'None', medications: 'None', immunizations: 'Up to date', qrCodeId: 'qr-demo-1', createdAt: new Date().toISOString() });
+    saveData(storageKeys.pets, pets);
+  }
+}
+
+function autoLoginFromHash() {
+  const hash = location.hash.replace('#', '');
+  if (!STATE.currentUser && hash === 'admin') {
+    const users = loadData(storageKeys.users, []);
+    let admin = users.find((user) => user.role === 'admin');
+    if (!admin) {
+      users.push(MASTER_ADMIN);
+      saveData(storageKeys.users, users);
+      admin = MASTER_ADMIN;
+    }
+    saveCurrentUser(admin);
+    seedDemoData(null);
+    return;
+  }
+  if (!STATE.currentUser && (hash === 'demo' || hash === 'user')) {
+    const users = loadData(storageKeys.users, []);
+    let user = users.find((u) => u.role === 'user');
+    if (!user) {
+      user = {
+        id: `user-${Date.now()}`,
+        name: 'Demo PetOwner',
+        email: 'demo@petnetwork.com',
+        phone: '+1-800-555-0199',
+        password: 'PetOwner!2026',
+        role: 'user',
+        provider: 'local',
+      };
+      users.push(user);
+      saveData(storageKeys.users, users);
+    }
+    saveCurrentUser(user);
+    seedDemoData(user);
+  }
+}
+
+function routeToView() {
+  const hash = location.hash.replace('#', '');
+  const queryParams = new URLSearchParams(window.location.search);
+  const deepQr = queryParams.get('qr');
+  
+  // SCENARIO A: Deep-link via QR code scan (handle before checking currentUser)
+  if (deepQr) {
+    const rawCode = normalizeQrText(deepQr);
+    const qrCode = loadData(storageKeys.qrCodes, []).find((q) => q.code === rawCode);
+    
+    if (!qrCode) {
+      // QR code doesn't exist in system
+      showMessage('This QR code is not recognized. Please contact support.');
+      showView('loginScreen');
+      return;
+    }
+    
+    // SCENARIO B: QR code is REGISTERED to a pet
+    if (qrCode.status === 'assigned' && qrCode.petId) {
+      renderFinderResult(rawCode);
+      return;
+    }
+    
+    // SCENARIO A: QR code is UNREGISTERED (available)
+    if (qrCode.status === 'available') {
+      STATE.pendingQrCode = qrCode;
+      showView('loginScreen');
+      showMessage('Welcome! This collar is ready to be registered. Please log in or create an account.');
+      return;
+    }
+  }
+  
+  if (!STATE.currentUser) {
+    showView('loginScreen');
+    return;
+  }
+
+  if (STATE.currentUser.role === 'admin') {
+    renderAdminPanel();
+    return;
+  }
+
+  if (hash === 'register') {
+    beginPetRegistration();
+    return;
+  }
+  if (hash === 'history') {
+    showView('historyScreen');
+    showHistoryView();
+    return;
+  }
+  if (hash === 'finder') {
+    showView('finderScreen');
+    return;
+  }
+  showView('dashboardScreen');
+  renderUserDashboard();
+}
+
+function routeAfterLogin() {
+  const pets = loadData(storageKeys.pets, []);
+  const userPets = pets.filter(p => p.ownerId === STATE.currentUser.id);
+  if (userPets.length > 0) {
+    showView('dashboardScreen');
+    renderUserDashboard();
+  } else {
+    location.hash = 'register';
+    beginPetRegistration();
+  }
+}
+
+function login(email, password) {
+  const user = getUserByEmail(email);
+  if (!user) {
+    showMessage('No account found for that email. Please create an account.');
+    return;
+  }
+  if (user.password !== password) {
+    showMessage('Invalid password. Please try again.');
+    return;
+  }
+  saveCurrentUser(user);
+  setNavigation();
+  if (user.role === 'admin') {
+    renderAdminPanel();
+  } else {
+    routeAfterLogin();
+  }
+}
+
+function registerUser(name, email, phone, password, provider = 'local') {
+  if (getUserByEmail(email)) {
+    showMessage('This email is already registered. Please use a different email or log in.');
+    return;
+  }
+  const users = loadData(storageKeys.users, []);
+  const user = {
+    id: `user-${Date.now()}`,
+    name,
+    email,
+    phone,
+    password,
+    role: 'user',
+    provider,
+  };
+  users.push(user);
+  saveData(storageKeys.users, users);
+  toggleLoginState('welcome');
+  showView('loginScreen');
+  showMessage('Account created! Please log in.');
+}
+
+function registerSocialUser(provider) {
+  // This function is deprecated for OAuth providers. Use provider-specific flows instead.
+  showMessage(`${provider} Sign-In flow has been moved to provider-specific handlers.`);
+}
+
+function handleLogout() {
+  if (!confirm('Are you sure you want to logout?')) {
+    return;
+  }
+  STATE.currentUser = null;
+  STATE.pendingQrCode = null;
+  STATE.currentQrVerification = null;
+  localStorage.removeItem('petnet_session');
+  setNavigation();
+  toggleLoginState('welcome');
+  showView('loginScreen');
+  const loginEmail = $('loginEmail');
+  const loginPassword = $('loginPassword');
+  if (loginEmail) loginEmail.value = '';
+  if (loginPassword) loginPassword.value = '';
+}
+
+function startLoginQrScanner() {
+  const container = $('loginScannerContainer');
+  container.classList.remove('hidden');
+
+  if (STATE.loginScanner) {
+    STATE.loginScanner.clear().catch(() => {});
+    STATE.loginScanner = null;
+  }
+
+  const html5QrCode = new Html5Qrcode('loginScannerContainer');
+  STATE.loginScanner = html5QrCode;
+  html5QrCode.start({ facingMode: 'environment' }, { fps: 10, qrbox: 250 }, (decodedText) => {
+    html5QrCode.stop().then(() => {
+      handleLoginQrDecoded(decodedText);
+    }).catch(() => {
+      handleLoginQrDecoded(decodedText);
+    });
+  }).catch(() => {
+    showMessage('Unable to access camera. You can enter the QR code manually on the account registration page.');
+  });
+}
+
+function handleLoginQrDecoded(codeText) {
+  if (STATE.loginScanner) {
+    STATE.loginScanner.clear().catch(() => {});
+    STATE.loginScanner = null;
+  }
+  const normalized = normalizeQrText(codeText);
+  const qrCodes = loadData(storageKeys.qrCodes, []);
+  const qr = qrCodes.find((q) => q.code === normalized);
+  if (!qr) {
+    showMessage('This QR code is not registered. Please ask the administrator for a valid collar.');
+    return;
+  }
+  if (qr.status === 'assigned') {
+    showMessage('This collar QR code is already assigned to a pet. Please use a different code.');
+    return;
+  }
+  STATE.pendingQrCode = qr;
+  $('loginScannerContainer').classList.add('hidden');
+  showMessage('QR code verified. Please create your account to continue registering your pet.');
+  showView('createAccountScreen');
+}
+
+function beginPetRegistration(editPet = null, preVerifiedQr = null) {
+  $('petFormTitle').textContent = editPet ? 'Edit Pet Profile' : 'Register Pet';
+  $('petForm').reset();
+  $('scannerStatus').textContent = 'No QR code scanned yet.';
+  $('petQrCode').value = '';
+  STATE.currentQrVerification = null;
+  $('scannerContainer').classList.add('hidden');
+  if (editPet) {
+    $('editingPetId').value = editPet.id;
+    $('petName').value = editPet.name;
+    $('petAge').value = editPet.age;
+    $('petBreed').value = editPet.breed;
+    $('petPhoto').value = editPet.photo;
+    $('petCharacteristics').value = editPet.characteristics;
+    $('petAllergies').value = editPet.allergies;
+    $('petMedications').value = editPet.medications;
+    $('petImmunizations').value = editPet.immunizations;
+    if (editPet.qrCodeId) {
+      const qr = loadData(storageKeys.qrCodes, []).find((code) => code.id === editPet.qrCodeId);
+      if (qr) {
+        $('petQrCode').value = qr.code;
+        STATE.currentQrVerification = qr;
+        $('scannerStatus').textContent = `QR collar already assigned: ${qr.code}`;
+      }
+    }
+  } else {
+    $('editingPetId').value = '';
+    if (preVerifiedQr) {
+      STATE.currentQrVerification = preVerifiedQr;
+      $('petQrCode').value = preVerifiedQr.code;
+      $('scannerStatus').textContent = `QR code verified: ${preVerifiedQr.code}`;
+    }
+  }
+  showView('petFormScreen');
+}
+
+function editPet(petId) {
+  const pet = loadData(storageKeys.pets, []).find((p) => p.id === petId);
+  if (!pet) return;
+  beginPetRegistration(pet);
+}
+
+function launchQrScanner(target) {
+  const config = { fps: 10, qrbox: 250 };
+  const scannerName = target === 'pet' ? 'petScanner' : 'finderScanner';
+  const container = target === 'pet' ? $('scannerContainer') : $('finderScannerContainer');
+  const input = target === 'pet' ? $('petQrCode') : $('finderQrInput');
+  const status = target === 'pet' ? $('scannerStatus') : null;
+  container.classList.remove('hidden');
+
+  if (STATE[scannerName]) {
+    STATE[scannerName].clear().catch(() => {});
+    STATE[scannerName] = null;
+  }
+
+  const html5QrCode = new Html5Qrcode(target === 'pet' ? 'scannerContainer' : 'finderScannerContainer');
+  STATE[scannerName] = html5QrCode;
+
+  html5QrCode.start({ facingMode: 'environment' }, config, (decodedText) => {
+    html5QrCode.stop().then(() => {
+      if (target === 'pet') {
+        verifyScannedQr(decodedText);
+      } else {
+        input.value = decodedText;
+        handleFinderLookup();
+      }
+    });
+  }).catch((err) => {
+    if (status) status.textContent = 'Camera not available. Enter QR code manually.';
+  });
+}
+
+function verifyScannedQr(codeText) {
+  const normalized = normalizeQrText(codeText);
+  const qrCodes = loadData(storageKeys.qrCodes, []);
+  const qrCode = qrCodes.find((q) => q.code === normalized);
+  if (!qrCode) {
+    $('scannerStatus').textContent = 'This QR code is not registered. Please contact admin.';
+    return;
+  }
+  if (qrCode.status === 'assigned') {
+    $('scannerStatus').textContent = 'This QR code is already assigned to a pet.';
+    return;
+  }
+  $('petQrCode').value = qrCode.code;
+  STATE.currentQrVerification = qrCode;
+  $('scannerStatus').textContent = `QR code verified: ${qrCode.code}`;
+}
+
+function handleFinderLookup() {
+  const codeText = $('finderQrInput').value.trim();
+  const rawCode = normalizeQrText(codeText);
+  renderFinderResult(rawCode);
+}
+
+function renderFinderResult(rawCode) {
+  const qrCode = loadData(storageKeys.qrCodes, []).find((q) => q.code === rawCode);
+  if (!qrCode || !qrCode.petId) {
+    showMessage('This pet has not been registered yet. Redirecting to the login screen.');
+    showView('loginScreen');
+    setNavigation();
+    const loginEmail = $('loginEmail');
+    const loginPassword = $('loginPassword');
+    if (loginEmail) loginEmail.value = '';
+    if (loginPassword) loginPassword.value = '';
+    return;
+  }
+  const pet = loadData(storageKeys.pets, []).find((p) => p.id === qrCode.petId);
+  const owner = loadData(storageKeys.users, []).find((u) => u.id === pet.ownerId);
+  showView('finderScreen');
+  const result = $('finderResult');
+  result.innerHTML = `
+    <h3>${pet.name}</h3>
+    <img src="${pet.photo}" alt="${pet.name}" style="width:100%;border-radius:16px;margin-bottom:12px;max-height:260px;object-fit:cover;" />
+    <p><strong>Breed:</strong> ${pet.breed}</p>
+    <p><strong>Age:</strong> ${pet.age}</p>
+    <p><strong>Characteristics:</strong> ${pet.characteristics}</p>
+    <p><strong>Allergies:</strong> ${pet.allergies || 'None'}<br><strong>Medications:</strong> ${pet.medications || 'None'}<br><strong>Immunizations:</strong> ${pet.immunizations || 'Unspecified'}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;">
+      <a class="primary" href="tel:${owner.phone}" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Call Owner</a>
+      <a class="secondary" href="mailto:${owner.email}?subject=Found%20${encodeURIComponent(pet.name)}" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Email Owner</a>
+    </div>
+  `;
+  recordHistory({ action: 'Finder lookup', userId: owner.id, petId: pet.id, qrCodeText: qrCode.code });
+}
+
+function recordHistory(entry) {
+  const history = loadData(storageKeys.history, []);
+  history.push({
+    id: `history-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    ...entry,
+    timestamp: new Date().toISOString(),
+  });
+  saveData(storageKeys.history, history);
+}
+
+function submitPetForm(event) {
+  event.preventDefault();
+  const petName = $('petName').value.trim();
+  const petAge = $('petAge').value.trim();
+  const petBreed = $('petBreed').value.trim();
+  const petPhoto = $('petPhoto').value.trim();
+  const petCharacteristics = $('petCharacteristics').value.trim();
+  const petAllergies = $('petAllergies').value.trim();
+  const petMedications = $('petMedications').value.trim();
+  const petImmunizations = $('petImmunizations').value.trim();
+  const editingId = $('editingPetId').value;
+
+  if (!STATE.currentQrVerification) {
+    showMessage('You must scan and verify a unique collar QR code before registering or updating a pet.');
+    return;
+  }
+
+  const pets = loadData(storageKeys.pets, []);
+  const qrCodes = loadData(storageKeys.qrCodes, []);
+  const qr = qrCodes.find((code) => code.id === STATE.currentQrVerification.id);
+  if (!qr || qr.status === 'assigned') {
+    showMessage('The QR code is no longer available. Please scan a new one.');
+    return;
+  }
+
+  if (editingId) {
+    const existingPet = pets.find((p) => p.id === editingId);
+    if (!existingPet) {
+      showMessage('Pet not found.');
+      return;
+    }
+    existingPet.name = petName;
+    existingPet.age = petAge;
+    existingPet.breed = petBreed;
+    existingPet.photo = petPhoto;
+    existingPet.characteristics = petCharacteristics;
+    existingPet.allergies = petAllergies;
+    existingPet.medications = petMedications;
+    existingPet.immunizations = petImmunizations;
+    if (existingPet.qrCodeId !== qr.id) {
+      const previousIndex = qrCodes.findIndex((code) => code.id === existingPet.qrCodeId);
+      if (previousIndex >= 0) {
+        qrCodes[previousIndex].status = 'available';
+        qrCodes[previousIndex].petId = null;
+      }
+      existingPet.qrCodeId = qr.id;
+      qr.petId = existingPet.id;
+      qr.status = 'assigned';
+    }
+    recordHistory({ action: 'Updated pet profile', userId: STATE.currentUser.id, petId: existingPet.id, qrCodeText: qr.code });
+  } else {
+    const newPet = {
+      id: `pet-${Date.now()}`,
+      ownerId: STATE.currentUser.id,
+      name: petName,
+      age: petAge,
+      breed: petBreed,
+      photo: petPhoto,
+      characteristics: petCharacteristics,
+      allergies: petAllergies,
+      medications: petMedications,
+      immunizations: petImmunizations,
+      qrCodeId: qr.id,
+      createdAt: new Date().toISOString(),
+    };
+    pets.push(newPet);
+    qr.petId = newPet.id;
+    qr.status = 'assigned';
+    recordHistory({ action: 'Registered pet', userId: STATE.currentUser.id, petId: newPet.id, qrCodeText: qr.code });
+  }
+
+  saveData(storageKeys.pets, pets);
+  saveData(storageKeys.qrCodes, qrCodes);
+  $('petForm').reset();
+  STATE.currentQrVerification = null;
+  showView('dashboardScreen');
+  renderUserDashboard();
+}
+
+function generateQrCodeBatch(count = 1) {
+  const qrCodes = loadData(storageKeys.qrCodes, []);
+  const generatedCodes = [];
+  for (let i = 0; i < count; i += 1) {
+    const id = `qr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const code = secureRandomCode();
+    const qrRecord = { id, code, label: `Collar ${qrCodes.length + i + 1}`, status: 'available', petId: null, createdAt: new Date().toISOString() };
+    qrCodes.push(qrRecord);
+    generatedCodes.push(qrRecord);
+  }
+  saveData(storageKeys.qrCodes, qrCodes);
+  
+  // Navigate to the QR codes display screen
+  showView('adminQrCodesScreen');
+  renderAdminQrCodes(false);
+  
+  // Show confirmation message
+  showMessage(`Successfully generated ${count} new collar QR code(s). They are ready for printing and distribution.`);
+}
+
+function showHistoryView() {
+  const historyList = $('historyList');
+  const history = loadData(storageKeys.history, []).filter((record) => record.userId === STATE.currentUser.id);
+  historyList.innerHTML = '';
+  if (!history.length) {
+    historyList.innerHTML = '<p>No scan history yet.</p>';
+  }
+  history.slice().reverse().forEach((event) => {
+    const item = document.createElement('div');
+    item.className = 'history-card';
+    const title = document.createElement('h4');
+    title.textContent = event.action;
+    const note = document.createElement('p');
+    note.innerHTML = `<strong>QR:</strong> ${event.qrCodeText}<br><strong>Time:</strong> ${new Date(event.timestamp).toLocaleString()}`;
+    item.append(title, note);
+    historyList.appendChild(item);
+  });
+}
+
+function toggleLoginState(state) {
+  const welcomeState = $('loginWelcomeState');
+  const formState = $('loginFormState');
+  
+  if (state === 'welcome') {
+    if (welcomeState) welcomeState.classList.remove('hidden');
+    if (formState) formState.classList.add('hidden');
+  } else if (state === 'form') {
+    if (welcomeState) welcomeState.classList.add('hidden');
+    if (formState) formState.classList.remove('hidden');
+  }
+}
+
+function attachEvents() {
+  // Login state toggle buttons
+  const loginToggleButton = $('loginToggleButton');
+  const backToWelcome = $('backToWelcome');
+  const linkCreateAccount = $('linkCreateAccount');
+  
+  if (loginToggleButton) {
+    loginToggleButton.addEventListener('click', () => toggleLoginState('form'));
+  }
+  if (backToWelcome) {
+    backToWelcome.addEventListener('click', () => toggleLoginState('welcome'));
+  }
+  if (linkCreateAccount) {
+    linkCreateAccount.addEventListener('click', (e) => {
+      e.preventDefault();
+      showView('createAccountScreen');
+    });
+  }
+
+  $('loginForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    login($('loginEmail').value.trim(), $('loginPassword').value);
+  });
+  $('showCreateAccount').addEventListener('click', () => showView('createAccountScreen'));
+  $('backToLogin').addEventListener('click', () => { toggleLoginState('welcome'); showView('loginScreen'); });
+  $('createAccountForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    registerUser($('createName').value.trim(), $('createEmail').value.trim(), $('createPhone').value.trim(), $('createPassword').value);
+  });
+  $('btnGoogle').addEventListener('click', () => loginSocialUser('Gmail'));
+  $('btnFacebook').addEventListener('click', () => loginSocialUser('Facebook'));
+  const btnLogoutUser = $('btnLogoutUser');
+  const btnLogoutAdmin = $('btnLogoutAdmin');
+  if (btnLogoutUser) btnLogoutUser.addEventListener('click', handleLogout);
+  if (btnLogoutAdmin) btnLogoutAdmin.addEventListener('click', handleLogout);
+
+  // User navigation
+  const navMyPets = $('navMyPets');
+  const navRegisterPet = $('navRegisterPet');
+  const navMyHistory = $('navMyHistory');
+  const navFinder = $('navFinder');
+  if (navMyPets) navMyPets.addEventListener('click', () => { navMyPets.classList.add('active-nav'); showView('dashboardScreen'); renderUserDashboard(); });
+  if (navRegisterPet) navRegisterPet.addEventListener('click', () => { navRegisterPet.classList.add('active-nav'); beginPetRegistration(); });
+  if (navMyHistory) navMyHistory.addEventListener('click', () => { navMyHistory.classList.add('active-nav'); showView('historyScreen'); showHistoryView(); });
+  if (navFinder) navFinder.addEventListener('click', () => { navFinder.classList.add('active-nav'); showView('finderScreen'); });
+
+  // Admin navigation
+  const navAdminOwners = $('navAdminOwners');
+  const navAdminPets = $('navAdminPets');
+  const navAdminScans = $('navAdminScans');
+  const navAdminQrStatus = $('navAdminQrStatus');
+  const navAdminPanel = $('navAdminPanel');
+  if (navAdminOwners) navAdminOwners.addEventListener('click', () => { navAdminOwners.classList.add('active-nav'); showView('adminOwnersScreen'); renderAdminOwners(true); });
+  if (navAdminPets) navAdminPets.addEventListener('click', () => { navAdminPets.classList.add('active-nav'); showView('adminPetsScreen'); renderAdminRegisteredPets(true); });
+  if (navAdminScans) navAdminScans.addEventListener('click', () => { navAdminScans.classList.add('active-nav'); showView('adminScansScreen'); renderAdminScanHistory(true); });
+  if (navAdminQrStatus) navAdminQrStatus.addEventListener('click', () => { navAdminQrStatus.classList.add('active-nav'); showView('adminQrStatusScreen'); renderAdminQrStatus(); });
+  if (navAdminPanel) navAdminPanel.addEventListener('click', () => { navAdminPanel.classList.add('active-nav'); renderAdminPanel(); });
+
+  // Admin QR codes view
+  const btnQrAvailable = $('btnQrAvailable');
+  const btnQrAll = $('btnQrAll');
+  if (btnQrAvailable) btnQrAvailable.addEventListener('click', () => renderAdminQrCodes(true));
+  if (btnQrAll) btnQrAll.addEventListener('click', () => renderAdminQrCodes(false));
+  const btnGenerateMore = $('btnGenerateMore');
+  if (btnGenerateMore) btnGenerateMore.addEventListener('click', () => {
+    const count = parseInt($('batchCount').value, 10) || 1;
+    generateQrCodeBatch(count);
+  });
+
+  $('btnAddPet').addEventListener('click', () => beginPetRegistration());
+  $('cancelPetForm').addEventListener('click', () => { showView('dashboardScreen'); renderUserDashboard(); });
+  $('btnScanQr').addEventListener('click', () => launchQrScanner('pet'));
+  $('petForm').addEventListener('submit', submitPetForm);
+  const petPhotoFile = $('petPhotoFile');
+  if (petPhotoFile) {
+    petPhotoFile.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      const preview = $('petPhotoPreview');
+      const hidden = $('petPhoto');
+      if (!file) {
+        if (preview) preview.src = '';
+        if (hidden) hidden.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function (ev) {
+        if (preview) preview.src = ev.target.result;
+        if (hidden) hidden.value = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  $('finderLookUp').addEventListener('click', handleFinderLookup);
+  $('finderScan').addEventListener('click', () => launchQrScanner('finder'));
+  $('finderBack').addEventListener('click', () => showView('dashboardScreen'));
+  $('historyBack').addEventListener('click', () => showView('dashboardScreen'));
+  // admin controls for recent / all views
+  const btnOwnersRecent = $('btnOwnersRecent');
+  const btnOwnersAll = $('btnOwnersAll');
+  if (btnOwnersRecent) btnOwnersRecent.addEventListener('click', () => renderAdminOwners(true));
+  if (btnOwnersAll) btnOwnersAll.addEventListener('click', () => renderAdminOwners(false));
+  const btnPetsRecent = $('btnPetsRecent');
+  const btnPetsAll = $('btnPetsAll');
+  if (btnPetsRecent) btnPetsRecent.addEventListener('click', () => renderAdminRegisteredPets(true));
+  if (btnPetsAll) btnPetsAll.addEventListener('click', () => renderAdminRegisteredPets(false));
+  const btnScansRecent = $('btnScansRecent');
+  const btnScansAll = $('btnScansAll');
+  if (btnScansRecent) btnScansRecent.addEventListener('click', () => renderAdminScanHistory(true));
+  if (btnScansAll) btnScansAll.addEventListener('click', () => renderAdminScanHistory(false));
+  $('btnGenerateBatch').addEventListener('click', () => {
+    const count = parseInt($('batchCount').value, 10) || 1;
+    generateQrCodeBatch(count);
+  });
+}
+
+async function init() {
+  initializeStorage();
+  loadSession();
+  autoLoginFromHash();
+  await prepareQrBaseUrl();
+  initGoogleSignIn();
+  // Initialize Facebook SDK if APP ID configured
+  initFacebookSdk();
+  setNavigation();
+  attachEvents();
+  routeToView();
+  window.addEventListener('hashchange', routeToView);
+}
+
+init();
