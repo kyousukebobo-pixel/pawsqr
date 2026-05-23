@@ -634,7 +634,6 @@ function handleGoogleSignInResponse(response) {
       saveCurrentUser(user);
       setNavigation();
       if (user.role === 'admin') {
-        location.hash = 'admin';
         renderAdminPanel();
       } else {
         routeAfterLogin();
@@ -767,7 +766,6 @@ function handleFacebookSignInResponse(authResponse) {
       saveCurrentUser(user);
       setNavigation();
       if (user.role === 'admin') {
-        location.hash = 'admin';
         renderAdminPanel();
       } else {
         routeAfterLogin();
@@ -1124,26 +1122,46 @@ function launchQrScanner(target) {
   const status = target === 'pet' ? $('scannerStatus') : null;
   container.classList.remove('hidden');
 
+  // Properly stop and clear previous scanner instance before starting a new one
   if (STATE[scannerName]) {
-    STATE[scannerName].clear().catch(() => {});
-    STATE[scannerName] = null;
+    STATE[scannerName].stop().then(() => {
+      STATE[scannerName].clear().catch(() => {});
+      STATE[scannerName] = null;
+      startNewScanner();
+    }).catch(() => {
+      STATE[scannerName] = null;
+      startNewScanner();
+    });
+  } else {
+    startNewScanner();
   }
 
-  const html5QrCode = new Html5Qrcode(target === 'pet' ? 'scannerContainer' : 'finderScannerContainer');
-  STATE[scannerName] = html5QrCode;
+  function startNewScanner() {
+    const html5QrCode = new Html5Qrcode(target === 'pet' ? 'scannerContainer' : 'finderScannerContainer');
+    STATE[scannerName] = html5QrCode;
 
-  html5QrCode.start({ facingMode: 'environment' }, config, (decodedText) => {
-    html5QrCode.stop().then(() => {
-      if (target === 'pet') {
-        verifyScannedQr(decodedText);
-      } else {
-        input.value = decodedText;
-        handleFinderLookup();
-      }
+    html5QrCode.start({ facingMode: 'environment' }, config, (decodedText) => {
+      html5QrCode.stop().then(() => {
+        container.classList.add('hidden');
+        if (target === 'pet') {
+          verifyScannedQr(decodedText);
+        } else {
+          input.value = decodedText;
+          handleFinderLookup();
+        }
+      }).catch(() => {
+        container.classList.add('hidden');
+        if (target === 'pet') {
+          verifyScannedQr(decodedText);
+        } else {
+          input.value = decodedText;
+          handleFinderLookup();
+        }
+      });
+    }).catch((err) => {
+      if (status) status.textContent = 'Camera not available. Enter QR code manually.';
     });
-  }).catch((err) => {
-    if (status) status.textContent = 'Camera not available. Enter QR code manually.';
-  });
+  }
 }
 
 function verifyScannedQr(codeText) {
