@@ -1561,12 +1561,12 @@ function attachEvents() {
 async function init() {
   initializeStorage();
   loadSession();
+  setNavigation();
   autoLoginFromHash();
   await prepareQrBaseUrl();
   initGoogleSignIn();
   // Initialize Facebook SDK if APP ID configured
   initFacebookSdk();
-  setNavigation();
   attachEvents();
   routeToView();
   window.addEventListener('hashchange', routeToView);
