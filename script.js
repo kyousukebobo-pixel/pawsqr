@@ -18,10 +18,9 @@ const MASTER_ADMIN = {
 };
 
 // Third-party Provider IDs (set these in production)
-const FACEBOOK_APP_ID = 'YOUR_FACEBOOK_APP_ID';
 // Google OAuth2 Configuration
 // Replace with your actual Google Client ID from Google Cloud Console
-const GOOGLE_CLIENT_ID = '1234567890-abcdefghijklmnop.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '540931981374-205a6qbbrte6lhulq32g5gcqt1adop3c.apps.googleusercontent.com';
 // NOTE: For production, store CLIENT_ID securely and use backend validation of tokens
 
 const storageKeys = {
@@ -729,93 +728,16 @@ function initGoogleSignIn() {
 
 // Initialize Facebook SDK (client-side). Set `FACEBOOK_APP_ID` above.
 function initFacebookSdk() {
-  if (!FACEBOOK_APP_ID || FACEBOOK_APP_ID === 'YOUR_FACEBOOK_APP_ID') {
-    console.warn('Facebook App ID not configured. Facebook Sign-In will be disabled until FACEBOOK_APP_ID is set.');
-    return;
-  }
-
-  // Load Facebook SDK asynchronously if not already present
-  if (window.FB) {
-    return;
-  }
-
-  window.fbAsyncInit = function () {
-    FB.init({
-      appId: FACEBOOK_APP_ID,
-      cookie: true,
-      xfbml: false,
-      version: 'v16.0',
-    });
-  };
-
-  (function (d, s, id) {
-    const fjs = d.getElementsByTagName(s)[0];
-    if (d.getElementById(id)) return;
-    const js = d.createElement(s);
-    js.id = id;
-    js.src = 'https://connect.facebook.net/en_US/sdk.js';
-    fjs.parentNode.insertBefore(js, fjs);
-  }(document, 'script', 'facebook-jssdk'));
+  // Facebook SDK initialization removed
 }
 
 function triggerFacebookSignIn() {
-  if (!window.FB) {
-    showMessage('Facebook SDK not loaded. Please try again shortly.');
-    return;
-  }
-
-  // Request login; allow account chooser in the popup
-  FB.login((resp) => {
-    if (resp.status === 'connected' && resp.authResponse) {
-      handleFacebookSignInResponse(resp.authResponse);
-    } else {
-      showMessage('Facebook sign-in was cancelled or failed.');
-    }
-  }, { scope: 'email', return_scopes: true });
+  // Facebook login removed - use Google Sign-In instead
+  showMessage('Facebook login is no longer available. Please use Google Sign-In instead.');
 }
 
 function handleFacebookSignInResponse(authResponse) {
-  FB.api('/me', { fields: 'id,name,email' }, function (profile) {
-    if (!profile || !profile.email) {
-      showMessage('Unable to retrieve email from Facebook. Please ensure you allow email access.');
-      return;
-    }
-    const email = profile.email;
-    const name = profile.name;
-    let user = getUserByEmail(email);
-    if (user) {
-      saveCurrentUser(user);
-      setNavigation();
-      if (user.role === 'admin') {
-        renderAdminPanel();
-      } else {
-        routeAfterLogin();
-      }
-      return;
-    }
-
-    // New user flow
-    const phone = prompt('Welcome! Please enter your phone number for owner contact:');
-    if (!phone) {
-      showMessage('Phone number is required to create an account.');
-      return;
-    }
-    const newUser = {
-      id: `user-${Date.now()}`,
-      name,
-      email,
-      phone,
-      password: `facebook-${profile.id}`,
-      role: 'user',
-      provider: 'facebook',
-    };
-    const users = loadData(storageKeys.users, []);
-    users.push(newUser);
-    saveData(storageKeys.users, users);
-    saveCurrentUser(newUser);
-    setNavigation();
-    routeAfterLogin();
-  });
+  // Facebook login removed
 }
 
 function setQrBaseUrl(url) {
@@ -1554,7 +1476,6 @@ function attachEvents() {
     registerUser($('createName').value.trim(), $('createEmail').value.trim(), $('createPhone').value.trim(), $('createPassword').value);
   });
   $('btnGoogle').addEventListener('click', () => loginSocialUser('Gmail'));
-  $('btnFacebook').addEventListener('click', () => loginSocialUser('Facebook'));
   const btnLogoutUser = $('btnLogoutUser');
   const btnLogoutAdmin = $('btnLogoutAdmin');
   if (btnLogoutUser) btnLogoutUser.addEventListener('click', handleLogout);
@@ -1649,8 +1570,6 @@ async function init() {
   autoLoginFromHash();
   await prepareQrBaseUrl();
   initGoogleSignIn();
-  // Initialize Facebook SDK if APP ID configured
-  initFacebookSdk();
   attachEvents();
   routeToView();
   window.addEventListener('hashchange', routeToView);
