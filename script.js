@@ -55,7 +55,7 @@ async function getUsers() {
 }
 
 async function getUserByEmail(email) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('users')
     .select('*')
     .eq('email', email.toLowerCase())
@@ -76,7 +76,7 @@ async function getUserByEmail(email) {
 }
 
 async function saveUser(user) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('users')
     .insert([{
       id: user.id,
@@ -113,7 +113,7 @@ async function getPets() {
 }
 
 async function getUserPets(userId) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('pets')
     .select('*')
     .eq('owner_id', userId);
@@ -145,7 +145,7 @@ async function savePet(pet) {
     created_at: pet.createdAt,
   };
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('pets')
     .insert([petData])
     .select();
@@ -169,7 +169,7 @@ async function updatePet(petId, updates) {
   if (updates.immunizations) updateData.immunizations = updates.immunizations;
   if (updates.qrCodeId) updateData.qr_code_id = updates.qrCodeId;
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('pets')
     .update(updateData)
     .eq('id', petId)
@@ -195,7 +195,7 @@ async function getQrCodes() {
 }
 
 async function getQrCodeByCode(code) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('qr_codes')
     .select('*')
     .eq('code', code)
@@ -214,7 +214,7 @@ async function getQrCodeByCode(code) {
 }
 
 async function saveQrCode(qr) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('qr_codes')
     .insert([{
       id: qr.id,
@@ -239,7 +239,7 @@ async function updateQrCode(qrId, updates) {
   if (updates.petId !== undefined) updateData.pet_id = updates.petId;
   if (updates.label) updateData.label = updates.label;
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('qr_codes')
     .update(updateData)
     .eq('id', qrId)
@@ -262,7 +262,7 @@ async function getScanHistory() {
 }
 
 async function saveScanHistory(entry) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('scan_history')
     .insert([{
       id: entry.id,
