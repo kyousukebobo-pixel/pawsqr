@@ -1,7 +1,7 @@
-// ===== SUPABASE INITIALIZATION =====
 const SUPABASE_URL = 'https://sbkkdtfdhvikhfdbhsbx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNia2tkdGZkaHZpa2hmZGJoc2J4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTk3NDUsImV4cCI6MjA5NTE3NTc0NX0.E-v0T9hbvRMWBOSjXOgHKSYRE3RgPnvcEtkQ9GJC1gA';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const { createClient } = supabase;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ===== STATE =====
 const STATE = {
@@ -40,7 +40,7 @@ function showMessage(message) {
 
 // ===== SUPABASE DATA HELPERS =====
 async function getUsers() {
-  const { data, error } = await supabase.from('users').select('*');
+  const { data, error } = await supabaseClient.from('users').select('*');
   if (error) {
     console.error('Error fetching users:', error);
     return [];
@@ -100,7 +100,7 @@ async function saveUser(user) {
 }
 
 async function getPets() {
-  const { data, error } = await supabase.from('pets').select('*');
+  const { data, error } = await supabaseClient.from('pets').select('*');
   if (error) {
     console.error('Error fetching pets:', error);
     return [];
@@ -183,7 +183,7 @@ async function updatePet(petId, updates) {
 }
 
 async function getQrCodes() {
-  const { data, error } = await supabase.from('qr_codes').select('*');
+  const { data, error } = await supabaseClient.from('qr_codes').select('*');
   if (error) {
     console.error('Error fetching QR codes:', error);
     return [];
@@ -253,7 +253,7 @@ async function updateQrCode(qrId, updates) {
 }
 
 async function getScanHistory() {
-  const { data, error } = await supabase.from('scan_history').select('*');
+  const { data, error } = await supabaseClient.from('scan_history').select('*');
   if (error) {
     console.error('Error fetching scan history:', error);
     return [];
