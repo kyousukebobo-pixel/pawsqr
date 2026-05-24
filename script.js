@@ -990,7 +990,6 @@ function routeAfterLogin() {
     showView('dashboardScreen');
     renderUserDashboard();
   } else {
-    location.hash = 'register';
     beginPetRegistration();
   }
 }
@@ -1235,8 +1234,8 @@ function handlePetQrScanned(decodedText, scannerInstance, container) {
       STATE.petScanner = null;
       container.classList.add('hidden');
       
-      // Now verify the QR code and set state
-      verifyScannedQr(decodedText);
+      // Extract code from URL and verify
+      handlePetQrVerification(decodedText);
     })
     .catch(() => {
       scannerInstance.clear().catch(() => {});
@@ -1244,8 +1243,45 @@ function handlePetQrScanned(decodedText, scannerInstance, container) {
       container.classList.add('hidden');
       
       // Still verify even if stop failed
-      verifyScannedQr(decodedText);
+      handlePetQrVerification(decodedText);
     });
+}
+
+function handlePetQrVerification(decodedText) {
+  // Extract code from URL if it contains ?qr=
+  let scannedCode = decodedText.trim();
+  if (scannedCode.includes('?qr=')) {
+    try {
+      scannedCode = new URL(scannedCode).searchParams.get('qr');
+    } catch (e) {
+      // If URL parsing fails, try regex
+      const match = scannedCode.match(/[?&]qr=([^&]+)/);
+      scannedCode = match ? decodeURIComponent(match[1]) : decodedText.trim();
+    }
+  }
+  
+  // Look up the code in localStorage
+  const qrCodes = loadData(storageKeys.qrCodes, []);
+  let qrRecord = qrCodes.find(q => q.code === scannedCode || q.id === scannedCode);
+  
+  // If NOT found in localStorage, create it on the spot
+  if (!qrRecord) {
+    qrRecord = {
+      id: `qr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      code: scannedCode,
+      label: `Collar ${qrCodes.length + 1}`,
+      status: 'available',
+      petId: null,
+      createdAt: new Date().toISOString(),
+    };
+    qrCodes.push(qrRecord);
+    saveData(storageKeys.qrCodes, qrCodes);
+  }
+  
+  // Set the verification and update the UI
+  STATE.currentQrVerification = qrRecord;
+  $('petQrCode').value = scannedCode;
+  $('scannerStatus').textContent = `QR Code scanned: ${scannedCode}`;
 }
 
 function handleFinderQrScanned(decodedText, scannerInstance, container) {
@@ -1370,7 +1406,7 @@ function submitPetForm(event) {
   const editingId = $('editingPetId').value;
 
   if (!STATE.currentQrVerification) {
-    showMessage('You must scan and verify a unique collar QR code before registering or updating a pet.');
+    alert('You must scan and verify a unique collar QR code before registering or updating a pet.');
     return;
   }
 
