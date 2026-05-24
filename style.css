@@ -820,6 +820,44 @@ button.facebook {
   }
 }
 
+/* Password wrapper and toggle button */
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-wrapper input {
+  flex: 1;
+  padding-right: 45px;
+}
+
+.eye-btn {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0;
+  color: var(--text);
+}
+
+.eye-btn:hover {
+  opacity: 0.7;
+}
+
+.password-requirements {
+  list-style: none;
+  padding: 8px 0 0 0;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.password-requirements li {
+  color: red;
+}
+
 /* Ensure hidden always hides at all screen sizes */
 .hidden {
   display: none !important;

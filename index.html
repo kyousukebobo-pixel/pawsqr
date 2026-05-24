@@ -8,6 +8,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.7/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -91,10 +92,24 @@
         <div class="card">
           <h1>Create Account</h1>
           <form id="createAccountForm" class="form-grid">
-            <label>Full Name<input type="text" id="createName" required /></label>
+            <label>First Name<input type="text" id="createFirstName" required /></label>
+            <label>Middle Name<input type="text" id="createMiddleName" /></label>
+            <label>Last Name<input type="text" id="createLastName" required /></label>
+            <label>Suffix<input type="text" id="createSuffix" placeholder="e.g. Jr., Sr., III (optional)" /></label>
             <label>Email<input type="email" id="createEmail" required /></label>
             <label>Phone Number<input type="tel" id="createPhone" required /></label>
-            <label>Password<input type="password" id="createPassword" required minlength="8" /></label>
+            <label>Password
+              <div class="password-wrapper">
+                <input type="password" id="createPassword" required minlength="8" />
+                <button type="button" id="togglePassword" class="eye-btn">👁</button>
+              </div>
+              <ul id="passwordRequirements" class="password-requirements">
+                <li id="req-length">✗ Minimum 8 characters</li>
+                <li id="req-upper">✗ At least one uppercase letter</li>
+                <li id="req-number">✗ At least one number</li>
+                <li id="req-special">✗ At least one special character (!@#$%^&*)</li>
+              </ul>
+            </label>
             <button type="submit" class="primary">Create Account</button>
           </form>
           <button id="backToLogin" class="secondary">Back to Login</button>
