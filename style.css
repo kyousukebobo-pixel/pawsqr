@@ -368,11 +368,6 @@ main {
   border-bottom-color: #D46416;
 }
 
-/* Hide hidden state */
-.hidden {
-  display: none !important;
-}
-
 .login-card {
   max-width: 460px;
 }
@@ -471,10 +466,6 @@ button.facebook {
 
 .divider::after {
   right: 0;
-}
-
-.hidden {
-  display: none !important;
 }
 
 .page-header {
@@ -827,4 +818,9 @@ button.facebook {
     box-shadow: none;
     border-radius: 0;
   }
+}
+
+/* Ensure hidden always hides at all screen sizes */
+.hidden {
+  display: none !important;
 }

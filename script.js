@@ -83,17 +83,38 @@ function setNavigation() {
   const userNav = $('userNav');
   const adminNav = $('adminNav');
   if (!STATE.currentUser) {
-    if (userNav) userNav.classList.add('hidden');
-    if (adminNav) adminNav.classList.add('hidden');
+    // When no user logged in: hide both navs
+    if (userNav) {
+      userNav.classList.add('hidden');
+      userNav.style.display = 'none';
+    }
+    if (adminNav) {
+      adminNav.classList.add('hidden');
+      adminNav.style.display = 'none';
+    }
     return;
   }
   const isAdmin = STATE.currentUser.role === 'admin';
   if (isAdmin) {
-    if (adminNav) adminNav.classList.remove('hidden');
-    if (userNav) userNav.classList.add('hidden');
+    // When admin logged in: show admin nav, hide user nav
+    if (adminNav) {
+      adminNav.classList.remove('hidden');
+      adminNav.style.display = 'flex';
+    }
+    if (userNav) {
+      userNav.classList.add('hidden');
+      userNav.style.display = 'none';
+    }
   } else {
-    if (userNav) userNav.classList.remove('hidden');
-    if (adminNav) adminNav.classList.add('hidden');
+    // When regular user logged in: show user nav, hide admin nav
+    if (userNav) {
+      userNav.classList.remove('hidden');
+      userNav.style.display = 'flex';
+    }
+    if (adminNav) {
+      adminNav.classList.add('hidden');
+      adminNav.style.display = 'none';
+    }
   }
 }
 
@@ -1583,8 +1604,11 @@ function attachEvents() {
 }
 
 async function init() {
+  // Clear session on page load - users must log in fresh each time
+  STATE.currentUser = null;
+  STATE.isAdmin = false;
+
   initializeStorage();
-  loadSession();
   setNavigation();
   autoLoginFromHash();
   await prepareQrBaseUrl();
