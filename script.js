@@ -34,11 +34,13 @@ async function getUsers() {
 }
 
 async function getUserByEmail(email) {
+  console.log('Checking email:', email.toLowerCase());
   const { data, error } = await dbClient
     .from('users')
     .select('*')
     .eq('email', email.toLowerCase())
     .limit(1);
+  console.log('getUserByEmail result - data:', data, 'error:', error);
   if (error) { console.error('getUserByEmail error:', error); return null; }
   return (data && data.length > 0) ? data[0] : null;
 }
