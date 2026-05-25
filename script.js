@@ -569,11 +569,6 @@ async function routeAfterLogin() {
 
 async function registerUser(name, email, phone, password, provider = 'local') {
   console.log('registerUser called with email:', email);
-  const confirmPwd = $('confirmPassword') ? $('confirmPassword').value : null;
-  if (confirmPwd !== null && password !== confirmPwd) {
-    showMessage('Passwords do not match. Please try again.');
-    return;
-  }
   const existing = await getUserByEmail(email);
   console.log('existing user check result:', existing);
   if (existing) { showMessage('This email is already registered.'); return; }
@@ -1848,10 +1843,15 @@ function attachEvents() {
     event.preventDefault();
     const fullName = [
       $('createFirstName').value.trim(),
-      $('createMiddleName').value.trim(),
+      $('createMiddleName') ? $('createMiddleName').value.trim() : '',
       $('createLastName').value.trim(),
-      $('createSuffix').value.trim()
+      $('createSuffix') ? $('createSuffix').value.trim() : ''
     ].filter(Boolean).join(' ');
+    const confirmPwd = $('confirmPassword') ? $('confirmPassword').value : null;
+    if (confirmPwd !== null && $('createPassword').value !== confirmPwd) {
+      alert('Passwords do not match. Please try again.');
+      return;
+    }
     registerUser(fullName, $('createEmail').value.trim(), $('createPhone').value.trim(), $('createPassword').value);
   });
   $('togglePassword').addEventListener('click', () => {
