@@ -1303,9 +1303,8 @@ function login(email, password) {
   }
 }
 
-async function registerUser(name, email, phone, password, provider = 'local') {
-  const existingUser = await getUserByEmail(email);
-  if (existingUser) {
+function registerUser(name, email, phone, password, provider = 'local') {
+  if (getUserByEmail(email)) {
     showMessage('This email is already registered. Please use a different email or log in.');
     return;
   }
@@ -1855,20 +1854,14 @@ function attachEvents() {
     }
     registerUser(fullName, $('createEmail').value.trim(), $('createPhone').value.trim(), $('createPassword').value);
   });
-  const togglePasswordBtn = $('togglePassword');
-  if (togglePasswordBtn) {
-    togglePasswordBtn.addEventListener('click', () => {
-      const input = $('createPassword');
-      if (input) input.type = input.type === 'password' ? 'text' : 'password';
-    });
-  }
-  const toggleConfirmPasswordBtn = $('toggleConfirmPassword');
-  if (toggleConfirmPasswordBtn) {
-    toggleConfirmPasswordBtn.addEventListener('click', () => {
-      const input = $('confirmPassword');
-      if (input) input.type = input.type === 'password' ? 'text' : 'password';
-    });
-  }
+  $('togglePassword').addEventListener('click', () => {
+    const input = $('createPassword');
+    input.type = input.type === 'password' ? 'text' : 'password';
+  });
+  $('toggleConfirmPassword').addEventListener('click', () => {
+    const input = $('confirmPassword');
+    input.type = input.type === 'password' ? 'text' : 'password';
+  });
   $('createPassword').addEventListener('input', () => {
     const val = $('createPassword').value;
     const update = (id, test) => {
