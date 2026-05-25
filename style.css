@@ -829,18 +829,18 @@ button.facebook {
 
 .password-wrapper input {
   flex: 1;
-  padding-right: 45px;
+  padding-right: 40px;
 }
 
 .eye-btn {
   position: absolute;
-  right: 12px;
+  right: 10px;
   background: none;
   border: none;
   cursor: pointer;
   font-size: 1.1rem;
   padding: 0;
-  color: var(--text);
+  z-index: 1;
 }
 
 .eye-btn:hover {

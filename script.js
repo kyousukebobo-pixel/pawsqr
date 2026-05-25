@@ -34,9 +34,13 @@ async function getUsers() {
 }
 
 async function getUserByEmail(email) {
-  const { data, error } = await dbClient.from('users').select('*').eq('email', email.toLowerCase()).maybeSingle();
+  const { data, error } = await dbClient
+    .from('users')
+    .select('*')
+    .eq('email', email.toLowerCase())
+    .limit(1);
   if (error) { console.error('getUserByEmail error:', error); return null; }
-  return data || null;
+  return (data && data.length > 0) ? data[0] : null;
 }
 
 async function saveUser(user) {

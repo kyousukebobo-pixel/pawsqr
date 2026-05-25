@@ -103,12 +103,6 @@
                 <input type="password" id="createPassword" required minlength="8" />
                 <button type="button" id="togglePassword" class="eye-btn">👁</button>
               </div>
-              <ul id="passwordRequirements" class="password-requirements">
-                <li id="req-length">✗ Minimum 8 characters</li>
-                <li id="req-upper">✗ At least one uppercase letter</li>
-                <li id="req-number">✗ At least one number</li>
-                <li id="req-special">✗ At least one special character (!@#$%^&*)</li>
-              </ul>
             </label>
             <label>Confirm Password
               <div class="password-wrapper">
@@ -116,6 +110,12 @@
                 <button type="button" id="toggleConfirmPassword" class="eye-btn">👁</button>
               </div>
             </label>
+            <ul id="passwordRequirements" class="password-requirements">
+              <li id="req-length">✗ Minimum 8 characters</li>
+              <li id="req-upper">✗ At least one uppercase letter</li>
+              <li id="req-number">✗ At least one number</li>
+              <li id="req-special">✗ At least one special character (!@#$%^&*)</li>
+            </ul>
             <button type="submit" class="primary">Create Account</button>
           </form>
           <button id="backToLogin" class="secondary">Back to Login</button>
