@@ -1,6 +1,6 @@
 const SUPABASE_URL = 'https://sbkkdtfdhvikhfdbhsbx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNia2tkdGZkaHZpa2hmZGJoc2J4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTk3NDUsImV4cCI6MjA5NTE3NTc0NX0.E-v0T9hbvRMWBOSjXOgHKSYRE3RgPnvcEtkQ9GJC1gA';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ===== STATE =====
 const STATE = {
@@ -39,7 +39,7 @@ function showMessage(message) {
 
 // ===== SUPABASE DATA HELPERS =====
 async function getUsers() {
-  const { data, error } = await supabase.from('users').select('*');
+  const { data, error } = await db.from('users').select('*');
   if (error) {
     console.error('Error fetching users:', error);
     return [];
@@ -54,7 +54,7 @@ async function getUsers() {
 }
 
 async function getUserByEmail(email) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('users')
     .select('*')
     .eq('email', email.toLowerCase())
@@ -75,7 +75,7 @@ async function getUserByEmail(email) {
 }
 
 async function saveUser(user) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('users')
     .insert([{
       id: user.id,
@@ -99,7 +99,7 @@ async function saveUser(user) {
 }
 
 async function getPets() {
-  const { data, error } = await supabase.from('pets').select('*');
+  const { data, error } = await db.from('pets').select('*');
   if (error) {
     console.error('Error fetching pets:', error);
     return [];
@@ -112,7 +112,7 @@ async function getPets() {
 }
 
 async function getUserPets(userId) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('pets')
     .select('*')
     .eq('owner_id', userId);
@@ -144,7 +144,7 @@ async function savePet(pet) {
     created_at: pet.createdAt,
   };
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('pets')
     .insert([petData])
     .select();
@@ -168,7 +168,7 @@ async function updatePet(petId, updates) {
   if (updates.immunizations) updateData.immunizations = updates.immunizations;
   if (updates.qrCodeId) updateData.qr_code_id = updates.qrCodeId;
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('pets')
     .update(updateData)
     .eq('id', petId)
@@ -182,7 +182,7 @@ async function updatePet(petId, updates) {
 }
 
 async function getQrCodes() {
-  const { data, error } = await supabase.from('qr_codes').select('*');
+  const { data, error } = await db.from('qr_codes').select('*');
   if (error) {
     console.error('Error fetching QR codes:', error);
     return [];
@@ -194,7 +194,7 @@ async function getQrCodes() {
 }
 
 async function getQrCodeByCode(code) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('qr_codes')
     .select('*')
     .eq('code', code)
@@ -213,7 +213,7 @@ async function getQrCodeByCode(code) {
 }
 
 async function saveQrCode(qr) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('qr_codes')
     .insert([{
       id: qr.id,
@@ -238,7 +238,7 @@ async function updateQrCode(qrId, updates) {
   if (updates.petId !== undefined) updateData.pet_id = updates.petId;
   if (updates.label) updateData.label = updates.label;
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('qr_codes')
     .update(updateData)
     .eq('id', qrId)
@@ -252,7 +252,7 @@ async function updateQrCode(qrId, updates) {
 }
 
 async function getScanHistory() {
-  const { data, error } = await supabase.from('scan_history').select('*');
+  const { data, error } = await db.from('scan_history').select('*');
   if (error) {
     console.error('Error fetching scan history:', error);
     return [];
@@ -261,7 +261,7 @@ async function getScanHistory() {
 }
 
 async function saveScanHistory(entry) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('scan_history')
     .insert([{
       id: entry.id,
