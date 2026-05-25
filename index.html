@@ -93,8 +93,8 @@
           <h1>Create Account</h1>
           <form id="createAccountForm" class="form-grid">
             <label>First Name<input type="text" id="createFirstName" required /></label>
-            <label>Middle Name<input type="text" id="createMiddleName" /></label>
             <label>Last Name<input type="text" id="createLastName" required /></label>
+            <label>Middle Name<input type="text" id="createMiddleName" /></label>
             <label>Suffix<input type="text" id="createSuffix" placeholder="e.g. Jr., Sr., III (optional)" /></label>
             <label>Email<input type="email" id="createEmail" required /></label>
             <label>Phone Number<input type="tel" id="createPhone" required /></label>
@@ -109,6 +109,12 @@
                 <li id="req-number">✗ At least one number</li>
                 <li id="req-special">✗ At least one special character (!@#$%^&*)</li>
               </ul>
+            </label>
+            <label>Confirm Password
+              <div class="password-wrapper">
+                <input type="password" id="confirmPassword" required minlength="8" />
+                <button type="button" id="toggleConfirmPassword" class="eye-btn">👁</button>
+              </div>
             </label>
             <button type="submit" class="primary">Create Account</button>
           </form>

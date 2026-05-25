@@ -34,7 +34,8 @@ async function getUsers() {
 }
 
 async function getUserByEmail(email) {
-  const { data } = await dbClient.from('users').select('*').eq('email', email.toLowerCase()).single();
+  const { data, error } = await dbClient.from('users').select('*').eq('email', email.toLowerCase()).maybeSingle();
+  if (error) { console.error('getUserByEmail error:', error); return null; }
   return data || null;
 }
 
@@ -561,6 +562,11 @@ async function routeAfterLogin() {
 }
 
 async function registerUser(name, email, phone, password, provider = 'local') {
+  const confirmPwd = $('confirmPassword') ? $('confirmPassword').value : null;
+  if (confirmPwd !== null && password !== confirmPwd) {
+    showMessage('Passwords do not match. Please try again.');
+    return;
+  }
   const existing = await getUserByEmail(email);
   if (existing) { showMessage('This email is already registered.'); return; }
   const nameParts = name.split(' ');
@@ -1842,6 +1848,10 @@ function attachEvents() {
   });
   $('togglePassword').addEventListener('click', () => {
     const input = $('createPassword');
+    input.type = input.type === 'password' ? 'text' : 'password';
+  });
+  $('toggleConfirmPassword').addEventListener('click', () => {
+    const input = $('confirmPassword');
     input.type = input.type === 'password' ? 'text' : 'password';
   });
   $('createPassword').addEventListener('input', () => {
