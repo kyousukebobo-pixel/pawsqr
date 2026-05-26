@@ -1550,6 +1550,35 @@ function attachEvents() {
     }
     await registerUser(fullName, $('createEmail').value.trim(), $('createPhone').value.trim(), $('createPassword').value);
   });
+
+  // Fix 1: Eye icon toggle for password visibility
+  const toggleBtn = document.getElementById('togglePassword');
+  const passwordInput = document.getElementById('createPassword');
+  if (toggleBtn && passwordInput) {
+    toggleBtn.addEventListener('click', () => {
+      passwordInput.type = passwordInput.type === 'password' ? 'text' : 'password';
+      toggleBtn.textContent = passwordInput.type === 'password' ? '👁' : '🙈';
+    });
+  }
+
+  // Fix 2: Live password validation requirements
+  const pwInput = document.getElementById('createPassword');
+  if (pwInput) {
+    pwInput.addEventListener('input', () => {
+      const val = pwInput.value;
+      const update = (id, test) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.color = test ? 'green' : 'red';
+        el.textContent = (test ? '✓' : '✗') + el.textContent.slice(1);
+      };
+      update('req-length', val.length >= 8);
+      update('req-upper', /[A-Z]/.test(val));
+      update('req-number', /[0-9]/.test(val));
+      update('req-special', /[!@#$%^&*]/.test(val));
+    });
+  }
+
   $('btnGoogle').addEventListener('click', () => loginSocialUser('Gmail'));
   const btnLogoutUser = $('btnLogoutUser');
   const btnLogoutAdmin = $('btnLogoutAdmin');
