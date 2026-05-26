@@ -960,32 +960,7 @@ async function init() {
   attachEvents();
   await routeToView();
   window.addEventListener('hashchange', routeToView);
-}
-
 init();
-
-
-function getUsersByProvider(provider) {
-  return loadData(storageKeys.users, []).filter((user) => user.provider === provider.toLowerCase());
-}
-
-function loginSocialUser(provider) {
-  if (provider === 'Gmail') {
-    triggerGoogleSignIn();
-  } else if (provider === 'Facebook') {
-    triggerFacebookSignIn();
-  }
-}
-
-function triggerGoogleSignIn() {
-  if (!window.google || !window.google.accounts || !window.google.accounts.id) {
-    showMessage('Google Sign-In service is not available. Please ensure Google Identity Services library is loaded.');
-    return;
-  }
-
-  try {
-    // Ensure we don't auto-select an already signed-in account
-    if (google.accounts.id.disableAutoSelect) google.accounts.id.disableAutoSelect();
 
     // Try One Tap first; if it doesn't display, render a popup button and open it
     google.accounts.id.prompt((notification) => {
