@@ -977,7 +977,6 @@ async function routeAfterLogin() {
 }
 
 async function login(email, password) {
-  // Check master admin first (hardcoded, not in Supabase)
   if (email === MASTER_ADMIN.email && password === MASTER_ADMIN.password) {
     STATE.currentUser = MASTER_ADMIN;
     setNavigation();
@@ -985,43 +984,52 @@ async function login(email, password) {
     return;
   }
 
-  // Query Supabase for the user
-  const user = await getUserByEmail(email);
-  if (!user) {
-    showMessage('No account found for that email. Please create an account.');
-    return;
-  }
-  
-  if (user.password !== password) {
-    showMessage('Invalid password. Please try again.');
+  const { data, error } = await db.from('users').select('*').eq('email', email).single();
+
+  if (error || !data) {
+    alert('No account found for that email.');
     return;
   }
 
-  STATE.currentUser = user;
+  if (data.password !== password) {
+    alert('Incorrect password.');
+    return;
+  }
+
+  STATE.currentUser = data;
   setNavigation();
   routeAfterLogin();
 }
 
-async function registerUser(name, email, phone, password, provider = 'local') {
-  const existingUser = await getUserByEmail(email);
-  if (existingUser) {
-    showMessage('This email is already registered. Please use a different email or log in.');
+async function registerUser() {
+  const firstName = document.getElementById('createFirstName').value.trim();
+  const middleName = document.getElementById('createMiddleName').value.trim();
+  const lastName = document.getElementById('createLastName').value.trim();
+  const suffix = document.getElementById('createSuffix').value.trim();
+  const email = document.getElementById('createEmail').value.trim();
+  const phone = document.getElementById('createPhone').value.trim();
+  const password = document.getElementById('createPassword').value;
+
+  const { data, error } = await db.from('users').insert([{
+    first_name: firstName,
+    middle_name: middleName,
+    last_name: lastName,
+    suffix: suffix,
+    email: email,
+    phone: phone,
+    password: password,
+    role: 'user',
+    provider: 'local'
+  }]);
+
+  if (error) {
+    alert('Registration failed: ' + error.message);
     return;
   }
-  const user = {
-    id: `user-${Date.now()}`,
-    name,
-    email: email.toLowerCase(),
-    phone,
-    password,
-    role: 'user',
-    provider,
-  };
-  await saveData('users', user);
-  $('createAccountForm').reset();
-  toggleLoginState('welcome');
+
+  document.getElementById('createAccountForm').reset();
+  alert('Account created successfully! Please log in.');
   showView('loginScreen');
-  showMessage('Account created! Please log in.');
 }
 
 function registerSocialUser(provider) {
@@ -1537,18 +1545,12 @@ function attachEvents() {
   $('backToLogin').addEventListener('click', () => { toggleLoginState('welcome'); showView('loginScreen'); });
   $('createAccountForm').addEventListener('submit', async (event) => {
     event.preventDefault();
-    const fullName = [
-      $('createFirstName').value.trim(),
-      $('createMiddleName') ? $('createMiddleName').value.trim() : '',
-      $('createLastName').value.trim(),
-      $('createSuffix') ? $('createSuffix').value.trim() : ''
-    ].filter(Boolean).join(' ');
     const confirmPwd = $('confirmPassword') ? $('confirmPassword').value : null;
     if (confirmPwd !== null && $('createPassword').value !== confirmPwd) {
       alert('Passwords do not match. Please try again.');
       return;
     }
-    await registerUser(fullName, $('createEmail').value.trim(), $('createPhone').value.trim(), $('createPassword').value);
+    await registerUser();
   });
 
   // Fix 1: Eye icon toggle for password visibility
