@@ -17,18 +17,16 @@ const MASTER_ADMIN = {
   phone: '+1-800-555-0101',
 };
 
+// Supabase Configuration
+const SUPABASE_URL = 'https://sbkkdtfdhvikhfdbhsbx.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNia2tkdGZkaHZpa2hmZGJzYngiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczNDM2NzYwMCwiZXhwIjoxODYyMTQzNjAwfQ.EXAMPLE';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 // Third-party Provider IDs (set these in production)
 // Google OAuth2 Configuration
 // Replace with your actual Google Client ID from Google Cloud Console
 const GOOGLE_CLIENT_ID = '540931981374-205a6qbbrte6lhulq32g5gcqt1adop3c.apps.googleusercontent.com';
 // NOTE: For production, store CLIENT_ID securely and use backend validation of tokens
-
-const storageKeys = {
-  users: 'petnet_users',
-  pets: 'petnet_pets',
-  qrCodes: 'petnet_qr_codes',
-  history: 'petnet_history',
-};
 
 let QR_BASE_URL = '';
 
@@ -36,30 +34,73 @@ function $(id) {
   return document.getElementById(id);
 }
 
-function loadData(key, fallback) {
-  const raw = localStorage.getItem(key);
-  return raw ? JSON.parse(raw) : fallback;
+// Supabase data access functions
+async function loadData(table) {
+  try {
+    const { data, error } = await db.from(table).select('*');
+    if (error) {
+      console.error(`Error loading ${table}:`, error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error(`Error loading ${table}:`, err);
+    return [];
+  }
 }
 
-function saveData(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+async function saveData(table, record) {
+  try {
+    const { data, error } = await db.from(table).insert([record]).select();
+    if (error) {
+      console.error(`Error saving to ${table}:`, error);
+      return null;
+    }
+    return data ? data[0] : null;
+  } catch (err) {
+    console.error(`Error saving to ${table}:`, err);
+    return null;
+  }
 }
 
-function initializeStorage() {
-  const users = loadData(storageKeys.users, []);
-  const existingAdmin = users.find((user) => user.role === 'admin');
-  if (!existingAdmin) {
-    users.push(MASTER_ADMIN);
-    saveData(storageKeys.users, users);
+async function updateData(table, id, updates) {
+  try {
+    const { data, error } = await db.from(table).update(updates).eq('id', id).select();
+    if (error) {
+      console.error(`Error updating ${table}:`, error);
+      return null;
+    }
+    return data ? data[0] : null;
+  } catch (err) {
+    console.error(`Error updating ${table}:`, err);
+    return null;
   }
-  if (!localStorage.getItem(storageKeys.pets)) {
-    saveData(storageKeys.pets, []);
+}
+
+async function deleteData(table, id) {
+  try {
+    const { error } = await db.from(table).delete().eq('id', id);
+    if (error) {
+      console.error(`Error deleting from ${table}:`, error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`Error deleting from ${table}:`, err);
+    return false;
   }
-  if (!localStorage.getItem(storageKeys.qrCodes)) {
-    saveData(storageKeys.qrCodes, []);
-  }
-  if (!localStorage.getItem(storageKeys.history)) {
-    saveData(storageKeys.history, []);
+}
+
+async function initializeStorage() {
+  try {
+    // Check if admin exists
+    const users = await loadData('users');
+    const existingAdmin = users.find((user) => user.role === 'admin');
+    if (!existingAdmin) {
+      await saveData('users', MASTER_ADMIN);
+    }
+  } catch (err) {
+    console.error('Error initializing storage:', err);
   }
 }
 
@@ -245,9 +286,9 @@ function createQRCodeElement(container, text, label = 'QR Code') {
   container.appendChild(holder);
 }
 
-function renderUserDashboard() {
-  const pets = loadData(storageKeys.pets, []);
-  const qrCodes = loadData(storageKeys.qrCodes, []);
+async function renderUserDashboard() {
+  const pets = await loadData('pets');
+  const qrCodes = await loadData('qr_codes');
   const myPets = pets.filter((pet) => pet.ownerId === STATE.currentUser.id);
   const myCodes = qrCodes.filter((qr) => qr.status === 'assigned' && myPets.some((pet) => pet.qrCodeId === qr.id));
   const userQrList = $('userQrList');
@@ -283,7 +324,7 @@ function renderUserDashboard() {
     const details = document.createElement('p');
     details.innerHTML = `<strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
     const label = document.createElement('small');
-    const code = loadData(storageKeys.qrCodes, []).find((qr) => qr.id === pet.qrCodeId);
+    const code = qrCodes.find((qr) => qr.id === pet.qrCodeId);
     label.textContent = `Collar: ${code ? code.code : 'Not assigned'}`;
     const health = document.createElement('p');
     health.innerHTML = `<strong>Allergies:</strong> ${pet.allergies || 'None'}<br><strong>Medications:</strong> ${pet.medications || 'None'}<br><strong>Immunizations:</strong> ${pet.immunizations || 'Unspecified'}`;
@@ -578,12 +619,32 @@ function renderAdminQrStatus() {
   });
 }
 
-function getUserByEmail(email) {
-  return loadData(storageKeys.users, []).find((user) => user.email.toLowerCase() === email.toLowerCase());
+async function getUserByEmail(email) {
+  try {
+    const { data, error } = await db.from('users').select('*').eq('email', email.toLowerCase()).single();
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error getting user by email:', error);
+      return null;
+    }
+    return data || null;
+  } catch (err) {
+    console.error('Error getting user by email:', err);
+    return null;
+  }
 }
 
-function getUsersByProvider(provider) {
-  return loadData(storageKeys.users, []).filter((user) => user.provider === provider.toLowerCase());
+async function getUsersByProvider(provider) {
+  try {
+    const { data, error } = await db.from('users').select('*').eq('provider', provider.toLowerCase());
+    if (error) {
+      console.error('Error getting users by provider:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('Error getting users by provider:', err);
+    return [];
+  }
 }
 
 function loginSocialUser(provider) {
@@ -647,44 +708,50 @@ function handleGoogleSignInResponse(response) {
     const picture = decodedToken.picture;
     const googleUserId = decodedToken.sub;
 
-    // Check if user already exists
-    let user = getUserByEmail(email);
-    if (user) {
-      // Existing user: log them in
-      saveCurrentUser(user);
-      setNavigation();
-      if (user.role === 'admin') {
-        renderAdminPanel();
-      } else {
-        routeAfterLogin();
-      }
-    } else {
-      // New user: prompt for phone number, then create account
-      const phone = prompt('Welcome! Please enter your phone number for owner contact:');
-      if (!phone) {
-        showMessage('Phone number is required to create an account.');
-        return;
-      }
+    // Process sign-in asynchronously
+    (async () => {
+      try {
+        // Check if user already exists
+        let user = await getUserByEmail(email);
+        if (user) {
+          // Existing user: log them in
+          saveCurrentUser(user);
+          setNavigation();
+          if (user.role === 'admin') {
+            renderAdminPanel();
+          } else {
+            routeAfterLogin();
+          }
+        } else {
+          // New user: prompt for phone number, then create account
+          const phone = prompt('Welcome! Please enter your phone number for owner contact:');
+          if (!phone) {
+            showMessage('Phone number is required to create an account.');
+            return;
+          }
 
-      const fakePassword = `google-${googleUserId}`;
-      const newUser = {
-        id: `user-${Date.now()}`,
-        name,
-        email,
-        phone,
-        password: fakePassword,
-        role: 'user',
-        provider: 'google',
-        picture,
-      };
+          const fakePassword = `google-${googleUserId}`;
+          const newUser = {
+            id: `user-${Date.now()}`,
+            name,
+            email: email.toLowerCase(),
+            phone,
+            password: fakePassword,
+            role: 'user',
+            provider: 'google',
+            picture,
+          };
 
-      const users = loadData(storageKeys.users, []);
-      users.push(newUser);
-      saveData(storageKeys.users, users);
-      saveCurrentUser(newUser);
-      setNavigation();
-      routeAfterLogin();
-    }
+          await saveData('users', newUser);
+          saveCurrentUser(newUser);
+          setNavigation();
+          routeAfterLogin();
+        }
+      } catch (err) {
+        console.error('Error in Google Sign-In processing:', err);
+        showMessage('Failed to process Google Sign-In. Please try again.');
+      }
+    })();
   } catch (error) {
     console.error('Error processing Google Sign-In:', error);
     showMessage('Failed to process Google Sign-In. Please try again.');
@@ -916,8 +983,8 @@ function routeAfterLogin() {
   }
 }
 
-function login(email, password) {
-  const user = getUserByEmail(email);
+async function login(email, password) {
+  const user = await getUserByEmail(email);
   if (!user) {
     showMessage('No account found for that email. Please create an account.');
     return;
@@ -935,23 +1002,22 @@ function login(email, password) {
   }
 }
 
-function registerUser(name, email, phone, password, provider = 'local') {
-  if (getUserByEmail(email)) {
+async function registerUser(name, email, phone, password, provider = 'local') {
+  const existingUser = await getUserByEmail(email);
+  if (existingUser) {
     showMessage('This email is already registered. Please use a different email or log in.');
     return;
   }
-  const users = loadData(storageKeys.users, []);
   const user = {
     id: `user-${Date.now()}`,
     name,
-    email,
+    email: email.toLowerCase(),
     phone,
     password,
     role: 'user',
     provider,
   };
-  users.push(user);
-  saveData(storageKeys.users, users);
+  await saveData('users', user);
   $('createAccountForm').reset();
   toggleLoginState('welcome');
   showView('loginScreen');
@@ -1465,15 +1531,26 @@ function attachEvents() {
     });
   }
 
-  $('loginForm').addEventListener('submit', (event) => {
+  $('loginForm').addEventListener('submit', async (event) => {
     event.preventDefault();
-    login($('loginEmail').value.trim(), $('loginPassword').value);
+    await login($('loginEmail').value.trim(), $('loginPassword').value);
   });
   $('showCreateAccount').addEventListener('click', () => showView('createAccountScreen'));
   $('backToLogin').addEventListener('click', () => { toggleLoginState('welcome'); showView('loginScreen'); });
-  $('createAccountForm').addEventListener('submit', (event) => {
+  $('createAccountForm').addEventListener('submit', async (event) => {
     event.preventDefault();
-    registerUser($('createName').value.trim(), $('createEmail').value.trim(), $('createPhone').value.trim(), $('createPassword').value);
+    const fullName = [
+      $('createFirstName').value.trim(),
+      $('createMiddleName') ? $('createMiddleName').value.trim() : '',
+      $('createLastName').value.trim(),
+      $('createSuffix') ? $('createSuffix').value.trim() : ''
+    ].filter(Boolean).join(' ');
+    const confirmPwd = $('confirmPassword') ? $('confirmPassword').value : null;
+    if (confirmPwd !== null && $('createPassword').value !== confirmPwd) {
+      alert('Passwords do not match. Please try again.');
+      return;
+    }
+    await registerUser(fullName, $('createEmail').value.trim(), $('createPhone').value.trim(), $('createPassword').value);
   });
   $('btnGoogle').addEventListener('click', () => loginSocialUser('Gmail'));
   const btnLogoutUser = $('btnLogoutUser');
@@ -1486,7 +1563,7 @@ function attachEvents() {
   const navRegisterPet = $('navRegisterPet');
   const navMyHistory = $('navMyHistory');
   const navFinder = $('navFinder');
-  if (navMyPets) navMyPets.addEventListener('click', () => { navMyPets.classList.add('active-nav'); showView('dashboardScreen'); renderUserDashboard(); });
+  if (navMyPets) navMyPets.addEventListener('click', async () => { navMyPets.classList.add('active-nav'); showView('dashboardScreen'); await renderUserDashboard(); });
   if (navRegisterPet) navRegisterPet.addEventListener('click', () => { navRegisterPet.classList.add('active-nav'); beginPetRegistration(); });
   if (navMyHistory) navMyHistory.addEventListener('click', () => { navMyHistory.classList.add('active-nav'); showView('historyScreen'); showHistoryView(); });
   if (navFinder) navFinder.addEventListener('click', () => { navFinder.classList.add('active-nav'); showView('finderScreen'); });
