@@ -19,7 +19,7 @@ const MASTER_ADMIN = {
 
 // Supabase Configuration
 const SUPABASE_URL = 'https://sbkkdtfdhvikhfdbhsbx.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNia2tkdGZkaHZpa2hmZGJzYngiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczNDM2NzYwMCwiZXhwIjoxODYyMTQzNjAwfQ.EXAMPLE';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNia2tkdGZkaHZpa2hmZGJoc2J4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTk3NDUsImV4cCI6MjA5NTE3NTc0NX0.E-v0T9hbvRMWBOSjXOgHKSYRE3RgPnvcEtkQ9GJC1gA';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Third-party Provider IDs (set these in production)
