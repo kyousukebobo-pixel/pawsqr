@@ -408,7 +408,7 @@ async function renderAdminRegisteredPets(recentOnly = false) {
 }
 
 async function renderAdminScanHistory(recentOnly = false) {
-  const history = (await loadData('history')).slice().reverse();
+  const history = (await loadData('scan_history')).slice().reverse();
   const users = await loadData('users');
   const pets = await loadData('pets');
   const container = $('adminScanHistory');
@@ -473,7 +473,7 @@ async function renderAdminQrStatus() {
   const qrCodes = await loadData('qr_codes');
   const pets = await loadData('pets');
   const users = await loadData('users');
-  const history = await loadData('history');
+  const history = await loadData('scan_history');
 
   // Count statuses
   const statusCounts = {
@@ -1020,7 +1020,7 @@ async function registerUser() {
     password: password,
     role: 'user',
     provider: 'local'
-  }]);
+  }]).select();
 
   if (error) {
     alert('Registration failed: ' + error.message);
@@ -1383,8 +1383,8 @@ async function renderFinderResult(rawCode) {
 }
 
 async function recordHistory(entry) {
-  const history = await loadData('history');
-  await saveData('history', {
+  const history = await loadData('scan_history');
+  await saveData('scan_history', {
     id: `history-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     ...entry,
     timestamp: new Date().toISOString(),
@@ -1487,7 +1487,7 @@ async function generateQrCodeBatch(count = 1) {
 
 async function showHistoryView() {
   const historyList = $('historyList');
-  const history = await loadData('history');
+  const history = await loadData('scan_history');
   const userHistory = history.filter((record) => record.userId === STATE.currentUser.id);
   historyList.innerHTML = '';
   if (!userHistory.length) {
