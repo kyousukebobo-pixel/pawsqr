@@ -868,9 +868,24 @@ function attachEvents() {
   $('loginForm').addEventListener('submit', (event) => { event.preventDefault(); login($('loginEmail').value.trim(), $('loginPassword').value); });
   $('showCreateAccount').addEventListener('click', () => showView('createAccountScreen'));
   $('backToLogin').addEventListener('click', () => { toggleLoginState('welcome'); showView('loginScreen'); });
-  $('createAccountForm').addEventListener('submit', (event) => {
+  $('createAccountForm').addEventListener('submit', async (event) => {
     event.preventDefault();
-    registerUser($('createName').value.trim(), $('createEmail').value.trim(), $('createPhone').value.trim(), $('createPassword').value);
+    try {
+      const firstName = $('createFirstName') ? $('createFirstName').value.trim() : '';
+      const lastName = $('createLastName') ? $('createLastName').value.trim() : '';
+      const middleName = $('createMiddleName') ? $('createMiddleName').value.trim() : '';
+      const suffix = $('createSuffix') ? $('createSuffix').value.trim() : '';
+      const fullName = [firstName, middleName, lastName, suffix].filter(Boolean).join(' ');
+      const email = $('createEmail').value.trim();
+      const phone = $('createPhone').value.trim();
+      const password = $('createPassword').value;
+      const confirmPwd = $('confirmPassword') ? $('confirmPassword').value : password;
+      if (password !== confirmPwd) { alert('Passwords do not match.'); return; }
+      await registerUser(fullName, email, phone, password);
+    } catch (err) {
+      console.error('Form submit error:', err);
+      alert('Something went wrong: ' + err.message);
+    }
   });
   $('btnGoogle').addEventListener('click', () => loginSocialUser('Gmail'));
   const btnLogoutUser = $('btnLogoutUser');
