@@ -962,35 +962,6 @@ async function init() {
   window.addEventListener('hashchange', routeToView);
 init();
 
-    // Try One Tap first; if it doesn't display, render a popup button and open it
-    google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        // If One Tap doesn't show, fall back to programmatic popup sign-in
-        let btn = document.getElementById('petnet-google-btn');
-        if (!btn) {
-          btn = document.createElement('div');
-          btn.id = 'petnet-google-btn';
-          btn.style.position = 'fixed';
-          btn.style.left = '-9999px';
-          document.body.appendChild(btn);
-        }
-        google.accounts.id.renderButton(
-          btn,
-          { type: 'standard', size: 'large', theme: 'outline', text: 'signin_with' }
-        );
-        // Click the hidden button to open the popup chooser
-        setTimeout(() => {
-          const rendered = btn.querySelector('button');
-          if (rendered) rendered.click();
-        }, 100);
-      }
-    });
-  } catch (error) {
-    console.error('Google Sign-In error:', error);
-    showMessage('Google Sign-In failed. Please try again.');
-  }
-}
-
 function handleGoogleSignInResponse(response) {
   if (!response.credential) {
     showMessage('Google Sign-In was cancelled. Please try again.');
