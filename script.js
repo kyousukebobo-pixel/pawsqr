@@ -308,6 +308,10 @@ async function renderUserDashboard() {
   myPets.forEach((pet) => {
     const card = document.createElement('div');
     card.className = 'pet-card';
+    card.style.position = 'relative';
+    const statusBadge = document.createElement('div');
+    statusBadge.className = `status-badge ${pet.is_lost ? 'lost' : 'active'}`;
+    statusBadge.textContent = pet.is_lost ? '● Lost' : '● Active';
     const image = document.createElement('img');
     image.src = pet.photo;
     image.alt = pet.name;
@@ -320,6 +324,18 @@ async function renderUserDashboard() {
     label.textContent = `Collar: ${code ? code.code : 'Not assigned'}`;
     const health = document.createElement('p');
     health.innerHTML = `<strong>Allergies:</strong> ${pet.allergies || 'None'}<br><strong>Medications:</strong> ${pet.medications || 'None'}<br><strong>Immunizations:</strong> ${pet.immunizations || 'Unspecified'}`;
+    const lostToggleRow = document.createElement('div');
+    lostToggleRow.className = 'lost-toggle-row';
+    lostToggleRow.innerHTML = `
+      <div>
+        <strong>Mark as lost</strong>
+        <div class="toggle-sub">Alerts finders immediately</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="lostToggle-${pet.id}" ${pet.is_lost ? 'checked' : ''} onchange="toggleLostStatus('${pet.id}', this.checked)" />
+        <span class="toggle-slider"></span>
+      </label>
+    `;
     const actions = document.createElement('div');
     actions.style.display = 'flex';
     actions.style.gap = '10px';
@@ -339,7 +355,7 @@ async function renderUserDashboard() {
       win.print();
     });
     actions.append(editButton, printButton);
-    card.append(image, title, details, label, health, actions);
+    card.append(statusBadge, image, title, details, label, health, lostToggleRow, actions);
     petCardList.appendChild(card);
   });
 }
@@ -400,29 +416,33 @@ async function renderAdminRegisteredPets(recentOnly = false) {
 }
 
 async function renderAdminScanHistory(recentOnly = false) {
-  const history = (await loadData('scan_history')).slice().reverse();
-  const users = await loadData('users');
-  const pets = await loadData('pets');
+  // Read scan history directly from Supabase, newest first
+  showView('adminScansScreen');
+  const { data: history, error } = await db.from('scan_history').select('*').order('scanned_at', { ascending: false });
+  const { data: qrCodes } = await db.from('qr_codes').select('*');
+  const { data: pets } = await db.from('pets').select('*');
+
   const container = $('adminScanHistory');
   if (!container) return;
-  container.innerHTML = '';
-  const scans = history.filter(h => /(scan|finder|lookup)/i.test(h.action) || /(scan)/i.test(h.action));
-  const items = recentOnly ? scans.slice(0, 12) : scans;
-  if (!items.length) {
-    container.innerHTML = '<p>No scan records available.</p>';
+
+  if (error || !history || !history.length) {
+    container.innerHTML = '<p>No scan history yet.</p>';
     return;
   }
-  items.forEach((event) => {
-    const card = document.createElement('div');
-    card.className = 'history-card';
-    const user = users.find(u => u.id === event.user_id);
-    const pet = pets.find(p => p.id === event.pet_id);
-    const title = document.createElement('h4');
-    title.textContent = `${event.action}`;
-    const details = document.createElement('p');
-    details.innerHTML = `<strong>User:</strong> ${user ? (getFullName(user) || user.email) : 'Unknown'}<br><strong>Pet:</strong> ${pet ? pet.name : 'N/A'}<br><strong>QR:</strong> ${event.qr_code_text}<br><strong>Time:</strong> ${new Date(event.created_at).toLocaleString()}`;
-    card.append(title, details);
-    container.appendChild(card);
+
+  container.innerHTML = '';
+  history.forEach(scan => {
+    const qr = qrCodes ? qrCodes.find(q => String(q.id) === String(scan.qr_code_id)) : null;
+    const pet = pets ? pets.find(p => String(p.qr_code_id) === String(qr ? qr.id : scan.qr_code_id)) : null;
+    const div = document.createElement('div');
+    div.className = 'history-card';
+    div.innerHTML = `
+      <strong>${pet ? pet.name : 'Unknown Pet'}</strong>
+      <div>QR: ${qr ? qr.code : (scan.qr_code_text || scan.qr_code_id)}</div>
+      <div>Scanned by: ${scan.scanned_by || 'Anonymous'}</div>
+      <div>Time: ${new Date(scan.scanned_at || scan.created_at).toLocaleString()}</div>
+    `;
+    container.appendChild(div);
   });
 }
 
@@ -448,154 +468,79 @@ async function renderAdminQrCodes(availableOnly = false) {
 }
 
 async function renderAdminQrStatus() {
-  const qrCodes = await loadData('qr_codes');
-  const pets = await loadData('pets');
-  const users = await loadData('users');
-  const history = await loadData('scan_history');
+  const { data: qrCodes, error: qrError } = await db.from('qr_codes').select('*').order('created_at', { ascending: false });
+  const { data: pets = [], error: petsError } = await db.from('pets').select('*');
+  const { data: users = [], error: usersError } = await db.from('users').select('*');
+  const { data: history = [], error: histError } = await db.from('scan_history').select('*');
 
-  // Count statuses
-  const statusCounts = {
-    active: 0,        // assigned
-    unassigned: 0,    // available
-    deactivated: 0,
-    lost: 0,
-  };
-
-  qrCodes.forEach((qr) => {
-    if (qr.status === 'assigned') {
-      statusCounts.active += 1;
-    } else if (qr.status === 'available') {
-      statusCounts.unassigned += 1;
-    } else if (qr.status === 'deactivated') {
-      statusCounts.deactivated += 1;
-    } else if (qr.status === 'lost') {
-      statusCounts.lost += 1;
-    }
-  });
-
-  const totalCollars = qrCodes.length;
-
-  // Render progress bar
-  const progressBar = $('qrProgressBar');
-  progressBar.innerHTML = '';
-  if (totalCollars > 0) {
-    const statusOrder = ['active', 'unassigned', 'deactivated', 'lost'];
-    statusOrder.forEach((status) => {
-      const count = statusCounts[status];
-      if (count > 0) {
-        const percentage = (count / totalCollars) * 100;
-        const segment = document.createElement('div');
-        segment.className = `progress-segment ${status}`;
-        segment.style.width = `${percentage}%`;
-        segment.textContent = `${count}`;
-        progressBar.appendChild(segment);
-      }
-    });
+  if (qrError) {
+    console.error('Error loading QR codes:', qrError);
+    return;
   }
-
-  // Render legend
-  const legendContainer = $('qrProgressLegend');
-  legendContainer.innerHTML = '';
-  const legendItems = [
-    { label: '🟢 Active / Assigned', status: 'active', count: statusCounts.active },
-    { label: '🟠 Unassigned', status: 'unassigned', count: statusCounts.unassigned },
-    { label: '⚫ Deactivated', status: 'deactivated', count: statusCounts.deactivated },
-    { label: '🔴 Lost Status', status: 'lost', count: statusCounts.lost },
-  ];
-
-  legendItems.forEach((item) => {
-    const legendItem = document.createElement('div');
-    legendItem.className = 'legend-item';
-    const dot = document.createElement('div');
-    dot.className = `legend-dot ${item.status}`;
-    const text = document.createElement('div');
-    text.className = 'legend-text';
-    const label = document.createElement('span');
-    label.textContent = item.label;
-    const count = document.createElement('span');
-    count.style.fontWeight = '700';
-    const pct = totalCollars > 0 ? ((item.count / totalCollars) * 100).toFixed(1) : 0;
-    count.textContent = `${item.count} (${pct}%)`;
-    text.append(label, count);
-    legendItem.append(dot, text);
-    legendContainer.appendChild(legendItem);
-  });
-
-  // Add total collars item
-  const totalItem = document.createElement('div');
-  totalItem.className = 'legend-item';
-  const totalLabel = document.createElement('span');
-  totalLabel.style.fontWeight = '700';
-  totalLabel.textContent = 'Total Collars';
-  const totalCount = document.createElement('span');
-  totalCount.style.fontWeight = '700';
-  totalCount.textContent = totalCollars.toString();
-  totalItem.append(totalLabel, totalCount);
-  legendContainer.appendChild(totalItem);
-
-  // Render table
-  const tableBody = $('qrStatusTableBody');
-  tableBody.innerHTML = '';
-
-  if (!qrCodes.length) {
-    const row = document.createElement('tr');
-    row.innerHTML = '<td colspan="5" style="text-align:center;padding:20px;">No QR codes found.</td>';
-    tableBody.appendChild(row);
+  if (!qrCodes || !qrCodes.length) {
+    const tableBodyEmpty = $('qrStatusTableBody');
+    if (tableBodyEmpty) {
+      tableBodyEmpty.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;">No QR codes found.</td></tr>';
+    }
+    const summaryElEmpty = $('qrStatusSummary');
+    if (summaryElEmpty) summaryElEmpty.innerHTML = '<h3>Assignment Breakdown</h3><p>No QR codes available.</p>';
     return;
   }
 
-  qrCodes.forEach((qr) => {
+  const counts = { assigned: 0, available: 0, deactivated: 0, lost: 0 };
+  qrCodes.forEach(qr => {
+    if (qr.status === 'assigned') counts.assigned++;
+    else if (qr.status === 'available') counts.available++;
+    else if (qr.status === 'deactivated') counts.deactivated++;
+    else if (qr.status === 'lost') counts.lost++;
+  });
+  const total = qrCodes.length;
+
+  // Update summary card
+  const summaryEl = $('qrStatusSummary');
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <div class="progress-bar-container">
+        <div class="progress-segment green" style="width:${(counts.assigned/total*100)||0}%"></div>
+        <div class="progress-segment orange" style="width:${(counts.available/total*100)||0}%"></div>
+        <div class="progress-segment gray" style="width:${(counts.deactivated/total*100)||0}%"></div>
+        <div class="progress-segment red" style="width:${(counts.lost/total*100)||0}%"></div>
+      </div>
+      <div class="legend">
+        <span>🟢 Active/Assigned: ${counts.assigned} (${total ? Math.round(counts.assigned/total*100) : 0}%)</span>
+        <span>🟠 Unassigned: ${counts.available} (${total ? Math.round(counts.available/total*100) : 0}%)</span>
+        <span>⚫ Deactivated: ${counts.deactivated} (${total ? Math.round(counts.deactivated/total*100) : 0}%)</span>
+        <span>🔴 Lost Status: ${counts.lost} (${total ? Math.round(counts.lost/total*100) : 0}%)</span>
+        <strong>Total Collars: ${total}</strong>
+      </div>
+    `;
+  }
+
+  // Update table
+  const tableBody = $('qrStatusTableBody');
+  if (!tableBody) return;
+  tableBody.innerHTML = '';
+
+  qrCodes.forEach(qr => {
+    // Find assigned pet by matching qr.id to pet.qr_code_id (support string/number types)
+    const assignedPet = pets.find(p => String(p.qr_code_id) === String(qr.id)) || null;
+    const owner = assignedPet ? users.find(u => String(u.id) === String(assignedPet.owner_id)) : null;
+    const scanCount = history.filter(h => String(h.qr_code_id) === String(qr.id)).length;
+
+    const ownerName = owner ? [owner.first_name, owner.last_name].filter(Boolean).join(' ') : '—';
+    const petName = assignedPet ? assignedPet.name : '—';
+
+    const statusColors = { assigned: 'green', available: 'orange', deactivated: 'gray', lost: 'red' };
+    const statusLabels = { assigned: 'Active', available: 'Unassigned', deactivated: 'Deactivated', lost: 'Lost Status' };
+
     const row = document.createElement('tr');
-    
-    // CODE ID
-    const codeCell = document.createElement('td');
-    codeCell.textContent = qr.code;
-    codeCell.style.fontWeight = '600';
-    
-    // STATUS
-    const statusCell = document.createElement('td');
-    const statusText = qr.status === 'assigned' ? 'Active' : 
-                       qr.status === 'available' ? 'Unassigned' :
-                       qr.status === 'deactivated' ? 'Deactivated' :
-                       qr.status === 'lost' ? 'Lost Status' : qr.status;
-    const statusBadge = document.createElement('span');
-    statusBadge.className = `status-badge ${qr.status === 'assigned' ? 'active' : qr.status === 'available' ? 'unassigned' : qr.status}`;
-    statusBadge.textContent = statusText;
-    statusCell.appendChild(statusBadge);
-    
-    // ASSIGNED PET
-    const petCell = document.createElement('td');
-    if (qr.pet_id) {
-      const pet = pets.find((p) => p.id === qr.pet_id);
-      petCell.textContent = pet ? pet.name : 'N/A';
-    } else {
-      petCell.textContent = '—';
-      petCell.style.color = '#999';
-    }
-    
-    // OWNER
-    const ownerCell = document.createElement('td');
-    if (qr.pet_id) {
-      const pet = pets.find((p) => p.id === qr.pet_id);
-      if (pet) {
-        const owner = users.find((u) => u.id === pet.owner_id);
-        ownerCell.textContent = owner ? (getFullName(owner) || owner.email) : 'Unknown';
-      } else {
-        ownerCell.textContent = '—';
-        ownerCell.style.color = '#999';
-      }
-    } else {
-      ownerCell.textContent = '—';
-      ownerCell.style.color = '#999';
-    }
-    
-    // SCANS
-    const scansCell = document.createElement('td');
-    const scanCount = history.filter((h) => h.qr_code_text === qr.code).length;
-    scansCell.textContent = scanCount.toString();
-    scansCell.style.fontWeight = '600';
-    
-    row.append(codeCell, statusCell, petCell, ownerCell, scansCell);
+    row.innerHTML = `
+      <td>${qr.code}</td>
+      <td><span class="status-pill ${statusColors[qr.status] || 'gray'}">${statusLabels[qr.status] || qr.status}</span></td>
+      <td>${petName}</td>
+      <td>${ownerName}</td>
+      <td>${scanCount}</td>
+    `;
     tableBody.appendChild(row);
   });
 }
@@ -853,6 +798,7 @@ function loadSession() {
     }
   } catch (e) {
     console.warn('Unable to load session:', e);
+    sessionStorage.removeItem('pawsqr_session');
   }
 }
 
@@ -1127,13 +1073,16 @@ async function handleLoginQrDecoded(codeText) {
 }
 
 async function beginPetRegistration(editPet = null, preVerifiedQr = null) {
+  const qrScanSection = $('qrScanSection');
   $('petFormTitle').textContent = editPet ? 'Edit Pet Profile' : 'Register Pet';
   $('petForm').reset();
   $('scannerStatus').textContent = 'No QR code scanned yet.';
   $('petQrCode').value = '';
   STATE.currentQrVerification = null;
   $('scannerContainer').classList.add('hidden');
+
   if (editPet) {
+    if (qrScanSection) qrScanSection.classList.add('hidden');
     $('editingPetId').value = editPet.id;
     $('petName').value = editPet.name;
     $('petAge').value = editPet.age;
@@ -1150,9 +1099,16 @@ async function beginPetRegistration(editPet = null, preVerifiedQr = null) {
         $('petQrCode').value = qr.code;
         STATE.currentQrVerification = qr;
         $('scannerStatus').textContent = `QR collar already assigned: ${qr.code}`;
+      } else {
+        STATE.currentQrVerification = {
+          id: editPet.qr_code_id,
+          code: editPet.qr_code_id,
+          status: 'assigned',
+        };
       }
     }
   } else {
+    if (qrScanSection) qrScanSection.classList.remove('hidden');
     $('editingPetId').value = '';
     if (preVerifiedQr) {
       STATE.currentQrVerification = preVerifiedQr;
@@ -1161,6 +1117,15 @@ async function beginPetRegistration(editPet = null, preVerifiedQr = null) {
     }
   }
   showView('petFormScreen');
+}
+
+async function toggleLostStatus(petId, isLost) {
+  const { error } = await db.from('pets').update({ is_lost: isLost }).eq('id', petId);
+  if (error) {
+    showMessage('Error updating status.');
+    return;
+  }
+  await renderUserDashboard();
 }
 
 async function editPet(petId) {
@@ -1397,7 +1362,22 @@ async function renderFinderResult(rawCode) {
       <a class="secondary" href="mailto:${owner.email}?subject=Found%20${encodeURIComponent(pet.name)}" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Email Owner</a>
     </div>
   `;
-  await recordHistory({ action: 'Finder lookup', user_id: owner.id, pet_id: pet.id, qr_code_text: qrCode.code });
+  // Save a scan record to Supabase (Finder lookup)
+  try {
+    const { error: scanError } = await db.from('scan_history').insert([{
+      qr_code_id: qrCode.id,
+      scanned_by: STATE.currentUser ? [STATE.currentUser.first_name, STATE.currentUser.last_name].filter(Boolean).join(' ') : 'Anonymous',
+      location: null,
+      scanned_at: new Date().toISOString(),
+      user_id: owner.id,
+      pet_id: pet.id,
+      qr_code_text: qrCode.code,
+      action: 'Finder lookup'
+    }]);
+    if (scanError) console.error('Error saving scan history:', scanError);
+  } catch (e) {
+    console.error('Unexpected error saving scan history:', e);
+  }
 }
 
 async function recordHistory(entry) {
@@ -1426,13 +1406,14 @@ async function submitPetForm(event) {
   }
 
   const pets = await loadData('pets');
+  const existingPet = editingId ? pets.find((p) => p.id === editingId) : null;
   const { data: freshQr, error: qrError } = await db.from('qr_codes').select('*').eq('id', STATE.currentQrVerification.id).single();
   if (qrError || !freshQr) {
     showMessage('QR code not found. Please scan again.');
     STATE.currentQrVerification = null;
     return;
   }
-  if (freshQr.status === 'assigned') {
+  if (freshQr.status === 'assigned' && (!existingPet || existingPet.qr_code_id !== freshQr.id)) {
     showMessage('This QR code is already assigned to a pet. Please scan a different one.');
     STATE.currentQrVerification = null;
     return;
@@ -1507,22 +1488,42 @@ async function generateQrCodeBatch(count = 1) {
 }
 
 async function showHistoryView() {
-  const historyList = $('historyList');
-  const history = await loadData('scan_history');
-  const userHistory = history.filter((record) => record.user_id === STATE.currentUser.id);
-  historyList.innerHTML = '';
-  if (!userHistory.length) {
-    historyList.innerHTML = '<p>No scan history yet.</p>';
+  const container = $('historyList');
+  if (!container) return;
+
+  // Load user's pets, then fetch scan history for those pet QR IDs
+  const { data: userPets = [] } = await db.from('pets').select('*').eq('owner_id', STATE.currentUser.id);
+  if (!userPets || !userPets.length) {
+    container.innerHTML = '<p>No scan history yet.</p>';
+    return;
   }
-  userHistory.slice().reverse().forEach((event) => {
+  const petQrIds = userPets.map(p => p.qr_code_id).filter(Boolean);
+  if (!petQrIds.length) {
+    container.innerHTML = '<p>No scan history yet.</p>';
+    return;
+  }
+
+  const { data: history, error } = await db.from('scan_history').select('*').in('qr_code_id', petQrIds).order('scanned_at', { ascending: false });
+  const { data: qrCodes = [] } = await db.from('qr_codes').select('*');
+
+  if (error || !history || !history.length) {
+    container.innerHTML = '<p>No scan history yet.</p>';
+    return;
+  }
+
+  container.innerHTML = '';
+  history.forEach(scan => {
+    const qr = qrCodes.find(q => String(q.id) === String(scan.qr_code_id)) || null;
+    const pet = userPets.find(p => String(p.qr_code_id) === String(scan.qr_code_id));
     const item = document.createElement('div');
     item.className = 'history-card';
-    const title = document.createElement('h4');
-    title.textContent = event.action;
-    const note = document.createElement('p');
-    note.innerHTML = `<strong>QR:</strong> ${event.qr_code_text}<br><strong>Time:</strong> ${new Date(event.created_at).toLocaleString()}`;
-    item.append(title, note);
-    historyList.appendChild(item);
+    item.innerHTML = `
+      <strong>${pet ? pet.name : 'Unknown Pet'}</strong>
+      <div>QR: ${qr ? qr.code : (scan.qr_code_text || scan.qr_code_id)}</div>
+      <div>Scanned by: ${scan.scanned_by || 'Anonymous'}</div>
+      <div>Time: ${new Date(scan.scanned_at || scan.created_at).toLocaleString()}</div>
+    `;
+    container.appendChild(item);
   });
 }
 
@@ -1698,12 +1699,12 @@ function attachEvents() {
 }
 
 async function init() {
-  // Clear session on page load - users must log in fresh each time
-  STATE.currentUser = null;
+  // Restore session from storage on page load
   STATE.isAdmin = false;
+  loadSession();
 
-  await initializeStorage();
   setNavigation();
+  await initializeStorage();
   await autoLoginFromHash();
   await prepareQrBaseUrl();
   initGoogleSignIn();
