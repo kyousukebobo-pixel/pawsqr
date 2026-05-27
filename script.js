@@ -437,39 +437,19 @@ async function renderAdminQrCodes(availableOnly = false) {
   const { data: qrCodes, error } = await db.from('qr_codes').select('*').order('created_at', { ascending: false });
   if (error) {
     console.error('Error loading QR codes:', error);
-    const containerErr = $('adminQrCodesList');
-    if (containerErr) containerErr.innerHTML = '<p>Error loading QR codes.</p>';
     return;
   }
   const container = $('adminQrCodesList');
   if (!container) return;
   container.innerHTML = '';
-  const items = availableOnly ? (qrCodes || []).filter(qr => qr.status === 'available') : (qrCodes || []);
-  if (!items.length) {
+  const items = availableOnly ? qrCodes.filter(qr => qr.status === 'available') : qrCodes;
+  if (!items || !items.length) {
     container.innerHTML = '<p>No QR codes available.</p>';
     return;
   }
   items.forEach((qr) => {
     const cardContainer = document.createElement('div');
-    cardContainer.style.display = 'flex';
-    cardContainer.style.flexDirection = 'column';
-    cardContainer.style.gap = '8px';
     createQRCodeElement(cardContainer, qr.code, `Collar ${qr.code}`);
-    const statusBadge = document.createElement('small');
-    statusBadge.style.padding = '4px 8px';
-    statusBadge.style.borderRadius = '4px';
-    statusBadge.style.fontSize = '12px';
-    statusBadge.style.fontWeight = '600';
-    if (qr.status === 'available') {
-      statusBadge.textContent = '✓ Available';
-      statusBadge.style.backgroundColor = '#d4edda';
-      statusBadge.style.color = '#155724';
-    } else {
-      statusBadge.textContent = '✓ Assigned';
-      statusBadge.style.backgroundColor = '#e2e3e5';
-      statusBadge.style.color = '#383d41';
-    }
-    cardContainer.appendChild(statusBadge);
     container.appendChild(cardContainer);
   });
 }
@@ -1488,18 +1468,15 @@ async function generateQrCodeBatch(count = 1) {
     const code = secureRandomCode();
     const { data, error } = await db.from('qr_codes').insert([{ code: code, status: 'available' }]).select().single();
     if (error) {
-      console.error('Error saving to qr_codes:', error);
-      continue;
+      console.error('Error generating QR code:', error);
+      showMessage('Error generating QR code: ' + (error.message || error));
+      return;
     }
     generatedCodes.push(data);
   }
-
-  // Navigate to the QR codes display screen and refresh the list
   showView('adminQrCodesScreen');
   await renderAdminQrCodes(false);
-
-  // Show confirmation message
-  showMessage(`Successfully generated ${generatedCodes.length} new collar QR code(s). They are ready for printing and distribution.`);
+  showMessage(`Successfully generated ${count} new collar QR code(s).`);
 }
 
 async function showHistoryView() {
