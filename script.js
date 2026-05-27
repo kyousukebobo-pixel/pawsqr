@@ -1228,7 +1228,7 @@ function launchQrScanner(target) {
         (decodedText) => {
           // QR code successfully scanned
           if (target === 'pet') {
-            handlePetQrScanned(decodedText, html5QrCode, container);
+            handlePetQrScan(decodedText);
           } else {
             handleFinderQrScanned(decodedText, html5QrCode, container);
           }
@@ -1252,58 +1252,56 @@ function launchQrScanner(target) {
   cleanupAndStartScanner();
 }
 
-function handlePetQrScanned(decodedText, scannerInstance, container) {
-  // Stop the scanner immediately
-  scannerInstance.stop()
-    .then(() => {
-      scannerInstance.clear().catch(() => {});
-      STATE.petScanner = null;
-      container.classList.add('hidden');
-      
-      // Extract code from URL and verify
-      handlePetQrVerification(decodedText);
-    })
-    .catch(() => {
-      scannerInstance.clear().catch(() => {});
-      STATE.petScanner = null;
-      container.classList.add('hidden');
-      
-      // Still verify even if stop failed
-      handlePetQrVerification(decodedText);
-    });
-}
-
-async function handlePetQrVerification(decodedText) {
-  // Extract code from URL if it contains ?qr=
+async function handlePetQrScan(decodedText) {
   let scannedCode = decodedText.trim();
-  if (scannedCode.includes('?qr=')) {
-    try {
-      scannedCode = new URL(scannedCode).searchParams.get('qr');
-    } catch (e) {
-      // If URL parsing fails, try regex
-      const match = scannedCode.match(/[?&]qr=([^&]+)/);
-      scannedCode = match ? decodeURIComponent(match[1]) : decodedText.trim();
+
+  // Extract code from URL if it's a full URL
+  try {
+    if (scannedCode.startsWith('http')) {
+      const url = new URL(scannedCode);
+      const qrParam = url.searchParams.get('qr');
+      if (qrParam) scannedCode = qrParam;
     }
-  }
-  
-  // Look up the code in Supabase
-  const qrCodes = await loadData('qr_codes');
-  let qrRecord = qrCodes.find(q => q.code === scannedCode || q.id === scannedCode);
-  
-  // If NOT found in Supabase, create it on the spot
+  } catch (e) {}
+
+  // Stop the scanner immediately
+  try {
+    if (STATE.petScanner) {
+      await STATE.petScanner.stop();
+      STATE.petScanner.clear();
+      STATE.petScanner = null;
+    }
+  } catch (e) {}
+
+  // Hide scanner container
+  const container = $('scannerContainer');
+  if (container) container.classList.add('hidden');
+
+  // Look up or create QR record in Supabase
+  let { data: qrRecord } = await db.from('qr_codes').select('*').eq('code', scannedCode).single();
+
   if (!qrRecord) {
-    const { data: savedQr, error: saveErr } = await db.from('qr_codes').insert([{ code: scannedCode, status: 'available' }]).select().single();
-    if (saveErr || !savedQr) {
+    const { data: newQr, error } = await db.from('qr_codes').insert([{
+      code: scannedCode,
+      status: 'available'
+    }]).select().single();
+    if (error || !newQr) {
       $('scannerStatus').textContent = 'Error saving QR code. Please try again.';
       return;
     }
-    qrRecord = savedQr;
+    qrRecord = newQr;
   }
-  
-  // Set the verification and update the UI
+
+  if (qrRecord.status === 'assigned') {
+    $('scannerStatus').textContent = 'This QR code is already assigned to a pet. Please scan a different one.';
+    STATE.currentQrVerification = null;
+    return;
+  }
+
+  // Set verification
   STATE.currentQrVerification = qrRecord;
-  $('petQrCode').value = scannedCode;
-  $('scannerStatus').textContent = `QR Code scanned: ${scannedCode}`;
+  $('scannerStatus').textContent = `✓ QR Code scanned: ${scannedCode}`;
+  if ($('petQrCode')) $('petQrCode').value = scannedCode;
 }
 
 function handleFinderQrScanned(decodedText, scannerInstance, container) {
@@ -1423,7 +1421,7 @@ async function submitPetForm(event) {
   const editingId = $('editingPetId').value;
 
   if (!STATE.currentQrVerification) {
-    alert('You must scan and verify a unique collar QR code before registering or updating a pet.');
+    showMessage('You must scan a QR code first.');
     return;
   }
 
