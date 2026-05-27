@@ -8,7 +8,6 @@ const STATE = {
 };
 
 const MASTER_ADMIN = {
-  id: 'admin-1',
   name: 'Master Admin',
   email: 'admin@petnetwork.com',
   password: 'MasterAdmin!2026',
@@ -289,8 +288,8 @@ function createQRCodeElement(container, text, label = 'QR Code') {
 async function renderUserDashboard() {
   const pets = await loadData('pets');
   const qrCodes = await loadData('qr_codes');
-  const myPets = pets.filter((pet) => pet.ownerId === STATE.currentUser.id);
-  const myCodes = qrCodes.filter((qr) => qr.status === 'assigned' && myPets.some((pet) => pet.qrCodeId === qr.id));
+  const myPets = pets.filter((pet) => pet.owner_id === STATE.currentUser.id);
+  const myCodes = qrCodes.filter((qr) => qr.status === 'assigned' && myPets.some((pet) => pet.qr_code_id === qr.id));
   const userQrList = $('userQrList');
   const petCardList = $('petCardList');
   userQrList.innerHTML = '';
@@ -324,7 +323,7 @@ async function renderUserDashboard() {
     const details = document.createElement('p');
     details.innerHTML = `<strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
     const label = document.createElement('small');
-    const code = qrCodes.find((qr) => qr.id === pet.qrCodeId);
+    const code = qrCodes.find((qr) => qr.id === pet.qr_code_id);
     label.textContent = `Collar: ${code ? code.code : 'Not assigned'}`;
     const health = document.createElement('p');
     health.innerHTML = `<strong>Allergies:</strong> ${pet.allergies || 'None'}<br><strong>Medications:</strong> ${pet.medications || 'None'}<br><strong>Immunizations:</strong> ${pet.immunizations || 'Unspecified'}`;
@@ -399,7 +398,7 @@ async function renderAdminRegisteredPets(recentOnly = false) {
     image.alt = pet.name;
     const title = document.createElement('h4');
     title.textContent = pet.name;
-    const owner = users.find(u => u.id === pet.ownerId);
+    const owner = users.find(u => u.id === pet.owner_id);
     const details = document.createElement('p');
     details.innerHTML = `<strong>Owner:</strong> ${owner ? owner.name : 'Unknown'}<br><strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
     card.append(image, title, details);
@@ -423,12 +422,12 @@ async function renderAdminScanHistory(recentOnly = false) {
   items.forEach((event) => {
     const card = document.createElement('div');
     card.className = 'history-card';
-    const user = users.find(u => u.id === event.userId);
-    const pet = pets.find(p => p.id === event.petId);
+    const user = users.find(u => u.id === event.user_id);
+    const pet = pets.find(p => p.id === event.pet_id);
     const title = document.createElement('h4');
     title.textContent = `${event.action}`;
     const details = document.createElement('p');
-    details.innerHTML = `<strong>User:</strong> ${user ? user.name : 'Unknown'}<br><strong>Pet:</strong> ${pet ? pet.name : 'N/A'}<br><strong>QR:</strong> ${event.qrCodeText}<br><strong>Time:</strong> ${new Date(event.timestamp).toLocaleString()}`;
+    details.innerHTML = `<strong>User:</strong> ${user ? user.name : 'Unknown'}<br><strong>Pet:</strong> ${pet ? pet.name : 'N/A'}<br><strong>QR:</strong> ${event.qr_code_text}<br><strong>Time:</strong> ${new Date(event.created_at).toLocaleString()}`;
     card.append(title, details);
     container.appendChild(card);
   });
@@ -587,8 +586,8 @@ async function renderAdminQrStatus() {
     
     // ASSIGNED PET
     const petCell = document.createElement('td');
-    if (qr.petId) {
-      const pet = pets.find((p) => p.id === qr.petId);
+    if (qr.pet_id) {
+      const pet = pets.find((p) => p.id === qr.pet_id);
       petCell.textContent = pet ? pet.name : 'N/A';
     } else {
       petCell.textContent = '—';
@@ -597,10 +596,10 @@ async function renderAdminQrStatus() {
     
     // OWNER
     const ownerCell = document.createElement('td');
-    if (qr.petId) {
-      const pet = pets.find((p) => p.id === qr.petId);
+    if (qr.pet_id) {
+      const pet = pets.find((p) => p.id === qr.pet_id);
       if (pet) {
-        const owner = users.find((u) => u.id === pet.ownerId);
+        const owner = users.find((u) => u.id === pet.owner_id);
         ownerCell.textContent = owner ? owner.name : 'Unknown';
       } else {
         ownerCell.textContent = '—';
@@ -613,7 +612,7 @@ async function renderAdminQrStatus() {
     
     // SCANS
     const scansCell = document.createElement('td');
-    const scanCount = history.filter((h) => h.qrCodeText === qr.code).length;
+    const scanCount = history.filter((h) => h.qr_code_text === qr.code).length;
     scansCell.textContent = scanCount.toString();
     scansCell.style.fontWeight = '600';
     
@@ -735,7 +734,6 @@ function handleGoogleSignInResponse(response) {
 
           const fakePassword = `google-${googleUserId}`;
           const newUser = {
-            id: `user-${Date.now()}`,
             name,
             email: email.toLowerCase(),
             phone,
@@ -745,8 +743,8 @@ function handleGoogleSignInResponse(response) {
             picture,
           };
 
-          await saveData('users', newUser);
-          STATE.currentUser = newUser;
+          const savedUser = await saveData('users', newUser);
+          STATE.currentUser = savedUser;
           setNavigation();
           await routeAfterLogin();
         }
@@ -861,11 +859,11 @@ async function seedDemoData(user) {
   const qrCodes = await loadData('qr_codes');
   const pets = await loadData('pets');
   if (qrCodes.length === 0) {
-    await saveData('qr_codes', { id: 'qr-demo-1', code: 'PN-DEMO-QR-0001', label: 'Collar 001', status: 'assigned', petId: 'pet-demo-1', createdAt: new Date().toISOString() });
-    await saveData('qr_codes', { id: 'qr-demo-2', code: 'PN-DEMO-QR-0002', label: 'Collar 002', status: 'available', petId: null, createdAt: new Date().toISOString() });
+    await saveData('qr_codes', { code: 'PN-DEMO-QR-0001', label: 'Collar 001', status: 'assigned', pet_id: 'pet-demo-1', created_at: new Date().toISOString() });
+    await saveData('qr_codes', { code: 'PN-DEMO-QR-0002', label: 'Collar 002', status: 'available', pet_id: null, created_at: new Date().toISOString() });
   }
   if (user && pets.length === 0) {
-    await saveData('pets', { id: 'pet-demo-1', ownerId: user.id, name: 'Luna', age: '2 years', breed: 'Siamese', photo: 'https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=800&q=80', characteristics: 'Blue eyes, white paws, small scar on ear', allergies: 'None', medications: 'None', immunizations: 'Up to date', qrCodeId: 'qr-demo-1', createdAt: new Date().toISOString() });
+    await saveData('pets', { owner_id: user.id, name: 'Luna', age: '2 years', breed: 'Siamese', photo: 'https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=800&q=80', characteristics: 'Blue eyes, white paws, small scar on ear', allergies: 'None', medications: 'None', immunizations: 'Up to date', qr_code_id: 'qr-demo-1', created_at: new Date().toISOString() });
   }
 }
 
@@ -880,8 +878,7 @@ async function autoLoginFromHash() {
     const users = await loadData('users');
     let user = users.find((u) => u.role === 'user');
     if (!user) {
-      user = {
-        id: `user-${Date.now()}`,
+      const newUserData = {
         name: 'Demo PetOwner',
         email: 'demo@petnetwork.com',
         phone: '+1-800-555-0199',
@@ -889,7 +886,8 @@ async function autoLoginFromHash() {
         role: 'user',
         provider: 'local',
       };
-      await saveData('users', user);
+      const savedUser = await saveData('users', newUserData);
+      user = savedUser;
     }
     STATE.currentUser = user;
     await seedDemoData(user);
@@ -919,7 +917,7 @@ async function routeToView() {
     }
     
     // SCENARIO B: QR code is REGISTERED to a pet - show pet info (public finder view)
-    if (qrCode.status === 'assigned' && qrCode.petId) {
+    if (qrCode.status === 'assigned' && qrCode.pet_id) {
       await renderFinderResult(rawCode);
       return;
     }
@@ -967,7 +965,7 @@ async function routeToView() {
 
 async function routeAfterLogin() {
   const pets = await loadData('pets');
-  const userPets = pets.filter(p => p.ownerId === STATE.currentUser.id);
+  const userPets = pets.filter(p => p.owner_id === STATE.currentUser.id);
   if (userPets.length > 0) {
     showView('dashboardScreen');
     await renderUserDashboard();
@@ -1020,7 +1018,7 @@ async function registerUser() {
     password: password,
     role: 'user',
     provider: 'local'
-  }]).select();
+  }]).select().single();
 
   if (error) {
     alert('Registration failed: ' + error.message);
@@ -1098,7 +1096,7 @@ async function handleLoginQrDecoded(codeText) {
   showView('createAccountScreen');
 }
 
-function beginPetRegistration(editPet = null, preVerifiedQr = null) {
+async function beginPetRegistration(editPet = null, preVerifiedQr = null) {
   $('petFormTitle').textContent = editPet ? 'Edit Pet Profile' : 'Register Pet';
   $('petForm').reset();
   $('scannerStatus').textContent = 'No QR code scanned yet.';
@@ -1115,8 +1113,9 @@ function beginPetRegistration(editPet = null, preVerifiedQr = null) {
     $('petAllergies').value = editPet.allergies;
     $('petMedications').value = editPet.medications;
     $('petImmunizations').value = editPet.immunizations;
-    if (editPet.qrCodeId) {
-      const qr = loadData(storageKeys.qrCodes, []).find((code) => code.id === editPet.qrCodeId);
+    if (editPet.qr_code_id) {
+      const qrs = await loadData('qr_codes');
+      const qr = qrs.find((code) => code.id === editPet.qr_code_id);
       if (qr) {
         $('petQrCode').value = qr.code;
         STATE.currentQrVerification = qr;
@@ -1264,14 +1263,14 @@ async function handlePetQrVerification(decodedText) {
   // If NOT found in Supabase, create it on the spot
   if (!qrRecord) {
     qrRecord = {
-      id: `qr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       code: scannedCode,
       label: `Collar ${qrCodes.length + 1}`,
       status: 'available',
-      petId: null,
-      createdAt: new Date().toISOString(),
+      pet_id: null,
+      created_at: new Date().toISOString(),
     };
-    await saveData('qr_codes', qrRecord);
+    const savedQr = await saveData('qr_codes', qrRecord);
+    qrRecord = savedQr;
   }
   
   // Set the verification and update the UI
@@ -1317,14 +1316,14 @@ async function verifyScannedQr(codeText) {
   if (!qrCode) {
     console.log('QR code not found in Supabase, creating new record');
     qrCode = {
-      id: `qr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       code: normalized,
       label: `Collar ${qrCodes.length + 1}`,
       status: 'available',
-      petId: null,
-      createdAt: new Date().toISOString(),
+      pet_id: null,
+      created_at: new Date().toISOString(),
     };
-    await saveData('qr_codes', qrCode);
+    const savedQr = await saveData('qr_codes', qrCode);
+    qrCode = savedQr;
     console.log('New QR code created and saved:', qrCode);
   }
   
@@ -1353,7 +1352,7 @@ async function renderFinderResult(rawCode) {
   const users = await loadData('users');
   
   const qrCode = qrCodes.find((q) => q.code === rawCode);
-  if (!qrCode || !qrCode.petId) {
+  if (!qrCode || !qrCode.pet_id) {
     showMessage('This pet has not been registered yet. Redirecting to the login screen.');
     showView('loginScreen');
     setNavigation();
@@ -1363,8 +1362,8 @@ async function renderFinderResult(rawCode) {
     if (loginPassword) loginPassword.value = '';
     return;
   }
-  const pet = pets.find((p) => p.id === qrCode.petId);
-  const owner = users.find((u) => u.id === pet.ownerId);
+  const pet = pets.find((p) => p.id === qrCode.pet_id);
+  const owner = users.find((u) => u.id === pet.owner_id);
   showView('finderScreen');
   const result = $('finderResult');
   result.innerHTML = `
@@ -1379,15 +1378,14 @@ async function renderFinderResult(rawCode) {
       <a class="secondary" href="mailto:${owner.email}?subject=Found%20${encodeURIComponent(pet.name)}" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Email Owner</a>
     </div>
   `;
-  await recordHistory({ action: 'Finder lookup', userId: owner.id, petId: pet.id, qrCodeText: qrCode.code });
+  await recordHistory({ action: 'Finder lookup', user_id: owner.id, pet_id: pet.id, qr_code_text: qrCode.code });
 }
 
 async function recordHistory(entry) {
   const history = await loadData('scan_history');
   await saveData('scan_history', {
-    id: `history-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     ...entry,
-    timestamp: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   });
 }
 
@@ -1431,20 +1429,19 @@ async function submitPetForm(event) {
       allergies: petAllergies,
       medications: petMedications,
       immunizations: petImmunizations,
-      qrCodeId: qr.id,
+      qr_code_id: qr.id,
     });
-    if (existingPet.qrCodeId !== qr.id) {
-      const previousIndex = qrCodes.findIndex((code) => code.id === existingPet.qrCodeId);
+    if (existingPet.qr_code_id !== qr.id) {
+      const previousIndex = qrCodes.findIndex((code) => code.id === existingPet.qr_code_id);
       if (previousIndex >= 0) {
-        await updateData('qr_codes', qrCodes[previousIndex].id, { status: 'available', petId: null });
+        await updateData('qr_codes', qrCodes[previousIndex].id, { status: 'available', pet_id: null });
       }
-      await updateData('qr_codes', qr.id, { petId: existingPet.id, status: 'assigned' });
+      await updateData('qr_codes', qr.id, { pet_id: existingPet.id, status: 'assigned' });
     }
-    await recordHistory({ action: 'Updated pet profile', userId: STATE.currentUser.id, petId: existingPet.id, qrCodeText: qr.code });
+    await recordHistory({ action: 'Updated pet profile', user_id: STATE.currentUser.id, pet_id: existingPet.id, qr_code_text: qr.code });
   } else {
     const newPet = {
-      id: `pet-${Date.now()}`,
-      ownerId: STATE.currentUser.id,
+      owner_id: STATE.currentUser.id,
       name: petName,
       age: petAge,
       breed: petBreed,
@@ -1453,12 +1450,12 @@ async function submitPetForm(event) {
       allergies: petAllergies,
       medications: petMedications,
       immunizations: petImmunizations,
-      qrCodeId: qr.id,
-      createdAt: new Date().toISOString(),
+      qr_code_id: qr.id,
+      created_at: new Date().toISOString(),
     };
-    await saveData('pets', newPet);
-    await updateData('qr_codes', qr.id, { petId: newPet.id, status: 'assigned' });
-    await recordHistory({ action: 'Registered pet', userId: STATE.currentUser.id, petId: newPet.id, qrCodeText: qr.code });
+    const savedPet = await saveData('pets', newPet);
+    await updateData('qr_codes', qr.id, { pet_id: savedPet.id, status: 'assigned' });
+    await recordHistory({ action: 'Registered pet', user_id: STATE.currentUser.id, pet_id: savedPet.id, qr_code_text: qr.code });
   }
 
   $('petForm').reset();
@@ -1472,7 +1469,7 @@ async function generateQrCodeBatch(count = 1) {
   const generatedCodes = [];
   for (let i = 0; i < count; i += 1) {
     const code = secureRandomCode();
-    const qrRecord = { id: `qr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, code, label: `Collar ${qrCodes.length + i + 1}`, status: 'available', petId: null, createdAt: new Date().toISOString() };
+    const qrRecord = { code, label: `Collar ${qrCodes.length + i + 1}`, status: 'available', pet_id: null, created_at: new Date().toISOString() };
     await saveData('qr_codes', qrRecord);
     generatedCodes.push(qrRecord);
   }
@@ -1488,7 +1485,7 @@ async function generateQrCodeBatch(count = 1) {
 async function showHistoryView() {
   const historyList = $('historyList');
   const history = await loadData('scan_history');
-  const userHistory = history.filter((record) => record.userId === STATE.currentUser.id);
+  const userHistory = history.filter((record) => record.user_id === STATE.currentUser.id);
   historyList.innerHTML = '';
   if (!userHistory.length) {
     historyList.innerHTML = '<p>No scan history yet.</p>';
@@ -1499,7 +1496,7 @@ async function showHistoryView() {
     const title = document.createElement('h4');
     title.textContent = event.action;
     const note = document.createElement('p');
-    note.innerHTML = `<strong>QR:</strong> ${event.qrCodeText}<br><strong>Time:</strong> ${new Date(event.timestamp).toLocaleString()}`;
+    note.innerHTML = `<strong>QR:</strong> ${event.qr_code_text}<br><strong>Time:</strong> ${new Date(event.created_at).toLocaleString()}`;
     item.append(title, note);
     historyList.appendChild(item);
   });
