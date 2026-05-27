@@ -696,7 +696,7 @@ function handleGoogleSignInResponse(response) {
         let user = await getUserByEmail(email);
         if (user) {
           // Existing user: log them in
-          STATE.currentUser = user;
+          saveCurrentUser(user);
           setNavigation();
           if (user.role === 'admin') {
             renderAdminPanel();
@@ -725,7 +725,7 @@ function handleGoogleSignInResponse(response) {
           };
 
           const savedUser = await saveData('users', newUser);
-          STATE.currentUser = savedUser;
+          saveCurrentUser(savedUser);
           setNavigation();
           await routeAfterLogin();
         }
@@ -837,16 +837,22 @@ async function registerSocialUser(provider) {
 
 function saveCurrentUser(user) {
   STATE.currentUser = user;
-  localStorage.setItem('petnet_session', JSON.stringify(user));
+  try {
+    sessionStorage.setItem('pawsqr_session', JSON.stringify(user));
+  } catch (e) {
+    console.warn('Unable to save session:', e);
+  }
 }
 
 function loadSession() {
-  const raw = localStorage.getItem('petnet_session');
-  if (raw) {
-    const user = JSON.parse(raw);
-    // Only load from localStorage for session persistence
-    // For fresh data, the user needs to log in
-    STATE.currentUser = user;
+  try {
+    const raw = sessionStorage.getItem('pawsqr_session');
+    if (raw) {
+      const user = JSON.parse(raw);
+      STATE.currentUser = user;
+    }
+  } catch (e) {
+    console.warn('Unable to load session:', e);
   }
 }
 
@@ -996,7 +1002,7 @@ async function routeAfterLogin() {
 
 async function login(email, password) {
   if (email === MASTER_ADMIN.email && password === MASTER_ADMIN.password) {
-    STATE.currentUser = MASTER_ADMIN;
+    saveCurrentUser(MASTER_ADMIN);
     setNavigation();
     renderAdminPanel();
     return;
@@ -1014,9 +1020,9 @@ async function login(email, password) {
     return;
   }
 
-  STATE.currentUser = data;
+  saveCurrentUser(data);
   setNavigation();
-  routeAfterLogin();
+  await routeAfterLogin();
 }
 
 async function registerUser() {
@@ -1062,7 +1068,11 @@ function handleLogout() {
   STATE.currentUser = null;
   STATE.pendingQrCode = null;
   STATE.currentQrVerification = null;
-  localStorage.removeItem('petnet_session');
+  try {
+    sessionStorage.removeItem('pawsqr_session');
+  } catch (e) {
+    console.warn('Unable to clear session:', e);
+  }
   setNavigation();
   toggleLoginState('welcome');
   showView('loginScreen');
@@ -1573,6 +1583,16 @@ function attachEvents() {
     toggleBtn.addEventListener('click', () => {
       passwordInput.type = passwordInput.type === 'password' ? 'text' : 'password';
       toggleBtn.textContent = passwordInput.type === 'password' ? '👁' : '🙈';
+    });
+  }
+
+  // Login password eye toggle
+  const toggleLoginBtn = document.getElementById('toggleLoginPassword');
+  const loginPasswordInput = document.getElementById('loginPassword');
+  if (toggleLoginBtn && loginPasswordInput) {
+    toggleLoginBtn.addEventListener('click', () => {
+      loginPasswordInput.type = loginPasswordInput.type === 'password' ? 'text' : 'password';
+      toggleLoginBtn.textContent = loginPasswordInput.type === 'password' ? '👁' : '🙈';
     });
   }
 
