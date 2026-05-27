@@ -8,7 +8,8 @@ const STATE = {
 };
 
 const MASTER_ADMIN = {
-  name: 'Master Admin',
+  first_name: 'Master',
+  last_name: 'Admin',
   email: 'admin@petnetwork.com',
   password: 'MasterAdmin!2026',
   role: 'admin',
@@ -91,16 +92,8 @@ async function deleteData(table, id) {
 }
 
 async function initializeStorage() {
-  try {
-    // Check if admin exists
-    const users = await loadData('users');
-    const existingAdmin = users.find((user) => user.role === 'admin');
-    if (!existingAdmin) {
-      await saveData('users', MASTER_ADMIN);
-    }
-  } catch (err) {
-    console.error('Error initializing storage:', err);
-  }
+  // Master admin is hardcoded in code, no need to save to Supabase
+  // Nothing to initialize here to avoid schema mismatch on startup
 }
 
 function showView(viewId) {
@@ -746,6 +739,21 @@ function handleGoogleSignInResponse(response) {
 }
 
 function parseJwt(token) {
+  function getFullName(u) {
+    if (!u) return '';
+    return [u.first_name, u.middle_name, u.last_name, u.suffix].filter(Boolean).join(' ');
+  }
+    items.forEach((u) => {
+      const card = document.createElement('div');
+      card.className = 'history-card';
+      const title = document.createElement('h4');
+      const fullName = getFullName(u);
+      title.textContent = fullName || u.email;
+      const details = document.createElement('p');
+      details.innerHTML = `<strong>Email:</strong> ${u.email}<br><strong>Phone:</strong> ${u.phone || 'N/A'}<br><strong>Provider:</strong> ${u.provider || 'local'}<br><strong>Role:</strong> ${u.role}`;
+      card.append(title, details);
+      container.appendChild(card);
+    });
   try {
     const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
