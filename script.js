@@ -1653,7 +1653,7 @@ function attachEvents() {
 
   $('btnAddPet').addEventListener('click', () => beginPetRegistration());
   $('cancelPetForm').addEventListener('click', () => { showView('dashboardScreen'); renderUserDashboard(); });
-  $('btnScanQr').addEventListener('click', () => launchQrScanner('pet'));
+  $('btnScanPetQr').addEventListener('click', () => launchQrScanner('pet'));
   $('petForm').addEventListener('submit', submitPetForm);
   const petPhotoFile = $('petPhotoFile');
   if (petPhotoFile) {

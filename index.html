@@ -161,13 +161,15 @@
             <label>Allergies<textarea id="petAllergies" rows="2"></textarea></label>
             <label>Medications<textarea id="petMedications" rows="2"></textarea></label>
             <label>Immunization Status<textarea id="petImmunizations" rows="2"></textarea></label>
-            <div class="scan-section">
-              <strong>Scan QR collar to verify code</strong>
-              <div id="scannerStatus">No QR code scanned yet.</div>
-              <button type="button" id="btnScanQr" class="secondary">Scan QR Code</button>
-              <div id="scannerContainer" class="scanner-container hidden"></div>
+            <div id="qrScanSection">
+              <h3>Scan QR collar to verify code</h3>
+              <p id="scannerStatus">No QR code scanned yet.</p>
+              <button type="button" id="btnScanPetQr" class="secondary">Scan QR Code</button>
+              <div id="scannerContainer" class="scanner-container hidden">
+                <div id="petQrReader"></div>
+              </div>
+              <input type="hidden" id="petQrCode" />
             </div>
-            <label class="hidden">QR Code<input type="text" id="petQrCode" readonly /></label>
             <button type="submit" class="primary">Save Pet</button>
           </form>
           <button id="cancelPetForm" class="secondary">Cancel</button>
