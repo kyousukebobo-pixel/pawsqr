@@ -364,7 +364,7 @@ async function renderAdminOwners(recentOnly = false) {
     const card = document.createElement('div');
     card.className = 'history-card';
     const title = document.createElement('h4');
-    title.textContent = u.name;
+    title.textContent = getFullName(u) || u.email;
     const details = document.createElement('p');
     details.innerHTML = `<strong>Email:</strong> ${u.email}<br><strong>Phone:</strong> ${u.phone || 'N/A'}<br><strong>Provider:</strong> ${u.provider || 'local'}<br><strong>Role:</strong> ${u.role}`;
     card.append(title, details);
@@ -393,7 +393,7 @@ async function renderAdminRegisteredPets(recentOnly = false) {
     title.textContent = pet.name;
     const owner = users.find(u => u.id === pet.owner_id);
     const details = document.createElement('p');
-    details.innerHTML = `<strong>Owner:</strong> ${owner ? owner.name : 'Unknown'}<br><strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
+    details.innerHTML = `<strong>Owner:</strong> ${owner ? (getFullName(owner) || owner.email) : 'Unknown'}<br><strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
     card.append(image, title, details);
     container.appendChild(card);
   });
@@ -420,7 +420,7 @@ async function renderAdminScanHistory(recentOnly = false) {
     const title = document.createElement('h4');
     title.textContent = `${event.action}`;
     const details = document.createElement('p');
-    details.innerHTML = `<strong>User:</strong> ${user ? user.name : 'Unknown'}<br><strong>Pet:</strong> ${pet ? pet.name : 'N/A'}<br><strong>QR:</strong> ${event.qr_code_text}<br><strong>Time:</strong> ${new Date(event.created_at).toLocaleString()}`;
+    details.innerHTML = `<strong>User:</strong> ${user ? (getFullName(user) || user.email) : 'Unknown'}<br><strong>Pet:</strong> ${pet ? pet.name : 'N/A'}<br><strong>QR:</strong> ${event.qr_code_text}<br><strong>Time:</strong> ${new Date(event.created_at).toLocaleString()}`;
     card.append(title, details);
     container.appendChild(card);
   });
@@ -579,7 +579,7 @@ async function renderAdminQrStatus() {
       const pet = pets.find((p) => p.id === qr.pet_id);
       if (pet) {
         const owner = users.find((u) => u.id === pet.owner_id);
-        ownerCell.textContent = owner ? owner.name : 'Unknown';
+        ownerCell.textContent = owner ? (getFullName(owner) || owner.email) : 'Unknown';
       } else {
         ownerCell.textContent = '—';
         ownerCell.style.color = '#999';
@@ -712,8 +712,10 @@ function handleGoogleSignInResponse(response) {
           }
 
           const fakePassword = `google-${googleUserId}`;
+          const { first_name, last_name } = splitFullName(name);
           const newUser = {
-            name,
+            first_name,
+            last_name,
             email: email.toLowerCase(),
             phone,
             password: fakePassword,
@@ -739,21 +741,6 @@ function handleGoogleSignInResponse(response) {
 }
 
 function parseJwt(token) {
-  function getFullName(u) {
-    if (!u) return '';
-    return [u.first_name, u.middle_name, u.last_name, u.suffix].filter(Boolean).join(' ');
-  }
-    items.forEach((u) => {
-      const card = document.createElement('div');
-      card.className = 'history-card';
-      const title = document.createElement('h4');
-      const fullName = getFullName(u);
-      title.textContent = fullName || u.email;
-      const details = document.createElement('p');
-      details.innerHTML = `<strong>Email:</strong> ${u.email}<br><strong>Phone:</strong> ${u.phone || 'N/A'}<br><strong>Provider:</strong> ${u.provider || 'local'}<br><strong>Role:</strong> ${u.role}`;
-      card.append(title, details);
-      container.appendChild(card);
-    });
   try {
     const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -768,6 +755,20 @@ function parseJwt(token) {
     console.error('JWT parsing error:', error);
     throw new Error('Invalid token format');
   }
+}
+
+function getFullName(u) {
+  if (!u) return '';
+  return [u.first_name, u.middle_name, u.last_name, u.suffix].filter(Boolean).join(' ');
+}
+
+function splitFullName(fullName) {
+  if (!fullName) return { first_name: '', last_name: '' };
+  const parts = fullName.trim().split(/\s+/);
+  return {
+    first_name: parts.shift() || '',
+    last_name: parts.join(' ') || '',
+  };
 }
 
 function initGoogleSignIn() {
@@ -897,7 +898,8 @@ async function autoLoginFromHash() {
     let user = users.find((u) => u.role === 'user');
     if (!user) {
       const newUserData = {
-        name: 'Demo PetOwner',
+        first_name: 'Demo',
+        last_name: 'PetOwner',
         email: 'demo@petnetwork.com',
         phone: '+1-800-555-0199',
         password: 'PetOwner!2026',
@@ -1280,8 +1282,11 @@ async function handlePetQrVerification(decodedText) {
   
   // If NOT found in Supabase, create it on the spot
   if (!qrRecord) {
-    qrRecord = { code: scannedCode, status: 'available' };
-    const savedQr = await saveData('qr_codes', qrRecord);
+    const { data: savedQr, error: saveErr } = await db.from('qr_codes').insert([{ code: scannedCode, status: 'available' }]).select().single();
+    if (saveErr || !savedQr) {
+      $('scannerStatus').textContent = 'Error saving QR code. Please try again.';
+      return;
+    }
     qrRecord = savedQr;
   }
   
@@ -1413,12 +1418,18 @@ async function submitPetForm(event) {
   }
 
   const pets = await loadData('pets');
-  const qrCodes = await loadData('qr_codes');
-  const qr = qrCodes.find((code) => code.id === STATE.currentQrVerification.id);
-  if (!qr || qr.status === 'assigned') {
-    showMessage('The QR code is no longer available. Please scan a new one.');
+  const { data: freshQr, error: qrError } = await db.from('qr_codes').select('*').eq('id', STATE.currentQrVerification.id).single();
+  if (qrError || !freshQr) {
+    showMessage('QR code not found. Please scan again.');
+    STATE.currentQrVerification = null;
     return;
   }
+  if (freshQr.status === 'assigned') {
+    showMessage('This QR code is already assigned to a pet. Please scan a different one.');
+    STATE.currentQrVerification = null;
+    return;
+  }
+  const qr = freshQr;
 
   if (editingId) {
     const existingPet = pets.find((p) => p.id === editingId);
