@@ -434,11 +434,17 @@ async function renderAdminScanHistory(recentOnly = false) {
 }
 
 async function renderAdminQrCodes(availableOnly = false) {
-  const qrCodes = (await loadData('qr_codes')).slice().reverse();
+  const { data: qrCodes, error } = await db.from('qr_codes').select('*').order('created_at', { ascending: false });
+  if (error) {
+    console.error('Error loading QR codes:', error);
+    const containerErr = $('adminQrCodesList');
+    if (containerErr) containerErr.innerHTML = '<p>Error loading QR codes.</p>';
+    return;
+  }
   const container = $('adminQrCodesList');
   if (!container) return;
   container.innerHTML = '';
-  const items = availableOnly ? qrCodes.filter(qr => qr.status === 'available') : qrCodes;
+  const items = availableOnly ? (qrCodes || []).filter(qr => qr.status === 'available') : (qrCodes || []);
   if (!items.length) {
     container.innerHTML = '<p>No QR codes available.</p>';
     return;
@@ -448,7 +454,7 @@ async function renderAdminQrCodes(availableOnly = false) {
     cardContainer.style.display = 'flex';
     cardContainer.style.flexDirection = 'column';
     cardContainer.style.gap = '8px';
-    createQRCodeElement(cardContainer, qr.code, `Collar ${qr.label || qr.code}`);
+    createQRCodeElement(cardContainer, qr.code, `Collar ${qr.code}`);
     const statusBadge = document.createElement('small');
     statusBadge.style.padding = '4px 8px';
     statusBadge.style.borderRadius = '4px';
@@ -856,14 +862,38 @@ function loadSession() {
 }
 
 async function seedDemoData(user) {
-  const qrCodes = await loadData('qr_codes');
+  const existingQrs = await loadData('qr_codes');
   const pets = await loadData('pets');
-  if (qrCodes.length === 0) {
-    await saveData('qr_codes', { code: 'PN-DEMO-QR-0001', label: 'Collar 001', status: 'assigned', pet_id: 'pet-demo-1', created_at: new Date().toISOString() });
-    await saveData('qr_codes', { code: 'PN-DEMO-QR-0002', label: 'Collar 002', status: 'available', pet_id: null, created_at: new Date().toISOString() });
+
+  // Create demo QR codes if none exist (avoid supplying manual IDs)
+  let demoQr1 = null;
+  if (existingQrs.length === 0) {
+    const saved1 = await saveData('qr_codes', { code: 'PN-DEMO-QR-0001', status: 'assigned' });
+    const saved2 = await saveData('qr_codes', { code: 'PN-DEMO-QR-0002', status: 'available' });
+    demoQr1 = saved1;
+  } else {
+    demoQr1 = existingQrs.find(q => q.code === 'PN-DEMO-QR-0001') || null;
   }
-  if (user && pets.length === 0) {
-    await saveData('pets', { owner_id: user.id, name: 'Luna', age: '2 years', breed: 'Siamese', photo: 'https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=800&q=80', characteristics: 'Blue eyes, white paws, small scar on ear', allergies: 'None', medications: 'None', immunizations: 'Up to date', qr_code_id: 'qr-demo-1', created_at: new Date().toISOString() });
+
+  // Create a demo pet linked to the first demo QR (use returned IDs)
+  if (user && pets.length === 0 && demoQr1) {
+    const petPayload = {
+      owner_id: user.id,
+      name: 'Luna',
+      age: '2 years',
+      breed: 'Siamese',
+      photo: 'https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=800&q=80',
+      characteristics: 'Blue eyes, white paws, small scar on ear',
+      allergies: 'None',
+      medications: 'None',
+      immunizations: 'Up to date',
+      qr_code_id: demoQr1.id,
+    };
+    const savedPet = await saveData('pets', petPayload);
+    // ensure qr is updated to reference the saved pet id
+    if (savedPet && demoQr1) {
+      await updateData('qr_codes', demoQr1.id, { pet_id: savedPet.id, status: 'assigned' });
+    }
   }
 }
 
@@ -1262,13 +1292,7 @@ async function handlePetQrVerification(decodedText) {
   
   // If NOT found in Supabase, create it on the spot
   if (!qrRecord) {
-    qrRecord = {
-      code: scannedCode,
-      label: `Collar ${qrCodes.length + 1}`,
-      status: 'available',
-      pet_id: null,
-      created_at: new Date().toISOString(),
-    };
+    qrRecord = { code: scannedCode, status: 'available' };
     const savedQr = await saveData('qr_codes', qrRecord);
     qrRecord = savedQr;
   }
@@ -1315,13 +1339,7 @@ async function verifyScannedQr(codeText) {
   // This allows scanning codes generated on other devices/sessions
   if (!qrCode) {
     console.log('QR code not found in Supabase, creating new record');
-    qrCode = {
-      code: normalized,
-      label: `Collar ${qrCodes.length + 1}`,
-      status: 'available',
-      pet_id: null,
-      created_at: new Date().toISOString(),
-    };
+    qrCode = { code: normalized, status: 'available' };
     const savedQr = await saveData('qr_codes', qrCode);
     qrCode = savedQr;
     console.log('New QR code created and saved:', qrCode);
@@ -1465,21 +1483,23 @@ async function submitPetForm(event) {
 }
 
 async function generateQrCodeBatch(count = 1) {
-  const qrCodes = await loadData('qr_codes');
   const generatedCodes = [];
   for (let i = 0; i < count; i += 1) {
     const code = secureRandomCode();
-    const qrRecord = { code, label: `Collar ${qrCodes.length + i + 1}`, status: 'available', pet_id: null, created_at: new Date().toISOString() };
-    await saveData('qr_codes', qrRecord);
-    generatedCodes.push(qrRecord);
+    const { data, error } = await db.from('qr_codes').insert([{ code: code, status: 'available' }]).select().single();
+    if (error) {
+      console.error('Error saving to qr_codes:', error);
+      continue;
+    }
+    generatedCodes.push(data);
   }
-  
-  // Navigate to the QR codes display screen
+
+  // Navigate to the QR codes display screen and refresh the list
   showView('adminQrCodesScreen');
   await renderAdminQrCodes(false);
-  
+
   // Show confirmation message
-  showMessage(`Successfully generated ${count} new collar QR code(s). They are ready for printing and distribution.`);
+  showMessage(`Successfully generated ${generatedCodes.length} new collar QR code(s). They are ready for printing and distribution.`);
 }
 
 async function showHistoryView() {
