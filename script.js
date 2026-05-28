@@ -1125,9 +1125,14 @@ async function routeToView() {
       return;
     }
     
-    // SCENARIO C: QR code is UNREGISTERED (available) - send to login/registration
+    // SCENARIO C: QR code is UNREGISTERED (available)
     if (qrCode.status === 'available') {
       STATE.pendingQrCode = qrCode;
+      if (STATE.currentUser) {
+        await beginPetRegistration(null, qrCode);
+        STATE.pendingQrCode = null;
+        return;
+      }
       showView('loginScreen');
       showMessage('Welcome! This collar is ready to be registered. Please log in or create an account.');
       return;
@@ -1167,6 +1172,13 @@ async function routeToView() {
 }
 
 async function routeAfterLogin() {
+  if (STATE.pendingQrCode) {
+    const pendingQrCode = STATE.pendingQrCode;
+    STATE.pendingQrCode = null;
+    await beginPetRegistration(null, pendingQrCode);
+    return;
+  }
+
   const pets = await loadData('pets');
   const userPets = pets.filter(p => p.owner_id === STATE.currentUser.id);
   if (userPets.length > 0) {
@@ -1228,9 +1240,10 @@ async function registerUser() {
     return;
   }
 
+  saveCurrentUser(data);
+  setNavigation();
   document.getElementById('createAccountForm').reset();
-  alert('Account created successfully! Please log in.');
-  showView('loginScreen');
+  await routeAfterLogin();
 }
 
 function registerSocialUser(provider) {
@@ -1589,8 +1602,7 @@ async function renderFinderResult(rawCode) {
 
   const pet = pets.find((p) => p.id === qrCode.pet_id);
   const owner = users.find((u) => u.id === pet.owner_id);
-  const contactHref = owner && owner.phone ? `tel:${owner.phone}` : owner && owner.email ? `mailto:${owner.email}` : '#';
-  const contactLabel = owner && owner.phone ? 'Call Owner' : 'Email Owner';
+  const contactHref = owner && owner.phone ? `tel:${owner.phone}` : '#';
   const hasAllergies = pet.allergies && pet.allergies.trim();
   const hasMedications = pet.medications && pet.medications.trim();
 
@@ -1612,7 +1624,7 @@ async function renderFinderResult(rawCode) {
       <h1 class="public-profile-name">${pet.name}</h1>
       <p class="public-profile-meta">${pet.breed || 'Unknown breed'} · ${pet.age || 'Age unknown'}</p>
 
-      <a class="public-profile-action" href="${contactHref}">${contactLabel}</a>
+      <a class="public-profile-action" href="${contactHref}">Call Owner</a>
 
       <section class="public-profile-info-card" aria-label="Pet information">
         <div class="public-profile-info-row">
