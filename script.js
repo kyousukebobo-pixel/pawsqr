@@ -328,11 +328,6 @@ function ensurePetQrModal() {
           <div class="qr-pet-meta"></div>
         </div>
 
-        <label class="qr-url-label" for="petQrUrlText">QR URL</label>
-        <input id="petQrUrlText" class="qr-url-display" type="text" readonly />
-
-        <div class="qr-how-it-works"></div>
-
         <div class="qr-actions" aria-label="QR actions">
           <button type="button" id="petQrDownloadBtn" class="secondary">Download</button>
           <button type="button" id="petQrCopyBtn" class="secondary">Copy Link</button>
@@ -375,8 +370,6 @@ async function openPetQrModal(pet, qrCode) {
   const collarValue = modal.querySelector('.qr-code-value');
   const petNameEl = modal.querySelector('.qr-pet-name');
   const petMetaEl = modal.querySelector('.qr-pet-meta');
-  const qrUrlInput = modal.querySelector('#petQrUrlText');
-  const howItWorks = modal.querySelector('.qr-how-it-works');
   const chart = modal.querySelector('#petQrChart');
   const totalPill = modal.querySelector('.scan-total-pill');
   const lastScannedEl = modal.querySelector('.scan-last-scanned');
@@ -391,8 +384,6 @@ async function openPetQrModal(pet, qrCode) {
   collarValue.textContent = qrCode.code;
   petNameEl.textContent = petName;
   petMetaEl.textContent = `${pet.breed || 'Unknown breed'} • ${pet.age || 'Age unknown'}`;
-  qrUrlInput.value = qrUrl;
-  howItWorks.textContent = `First scan → registration page to link the collar. Every scan after → goes straight to ${petName}'s profile.`;
 
   qrStage.innerHTML = '';
   new QRCode(qrStage, {
@@ -1596,46 +1587,62 @@ async function renderFinderResult(rawCode) {
     return;
   }
 
-  if (!qrCode.pet_id) {
-    STATE.pendingQrCode = qrCode;
+  const pet = pets.find((p) => String(p.qr_code_id) === String(qrCode.id));
+
+  if (!pet) {
     if (STATE.currentUser) {
+      STATE.pendingQrCode = qrCode;
       beginPetRegistration(null, qrCode);
     } else {
+      STATE.pendingQrCode = qrCode;
       toggleLoginState('form');
       showView('loginScreen');
     }
     return;
   }
 
-  const pet = pets.find((p) => p.id === qrCode.pet_id);
   const owner = users.find((u) => u.id === pet.owner_id);
 
   showView('finderScreen');
   const result = $('finderResult');
   result.innerHTML = `
     ${pet.is_lost ? `
-    <div style="background:#fff0f0;border-radius:16px;padding:16px;margin-bottom:20px;border:1px solid #ffcccc;">
-      <strong style="color:#cc0000;">🔴 This pet is reported lost</strong>
-      <p style="color:#cc0000;margin:6px 0 0;">Please contact the owner immediately — they are waiting for your call.</p>
-    </div>` : ''}
-    <div style="display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:20px;">
-      <img src="${pet.photo}" style="width:140px;height:140px;border-radius:50%;object-fit:cover;border:4px solid white;box-shadow:0 4px 16px rgba(0,0,0,0.15);" />
-      <h2 style="margin:0;font-size:1.8rem;">${pet.name}</h2>
-      <p style="margin:0;color:#888;">${pet.breed} · ${pet.age}</p>
-    </div>
-    <a href="tel:${owner.phone}" style="display:block;width:100%;background:#F47B20;color:white;text-align:center;padding:16px;border-radius:50px;font-weight:800;font-size:1rem;text-decoration:none;margin-bottom:20px;">📞 Call Owner</a>
-    <div style="background:white;border-radius:18px;padding:16px;margin-bottom:16px;">
-      <p style="color:#aaa;font-size:0.75rem;font-weight:700;text-transform:uppercase;margin:0 0 12px;">Pet Information</p>
-      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0;"><span style="color:#aaa;font-size:0.8rem;text-transform:uppercase;">Breed</span><strong>${pet.breed}</strong></div>
-      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0;"><span style="color:#aaa;font-size:0.8rem;text-transform:uppercase;">Age</span><strong>${pet.age}</strong></div>
-      <div style="display:flex;justify-content:space-between;padding:10px 0;"><span style="color:#aaa;font-size:0.8rem;text-transform:uppercase;">Characteristics</span><strong>${pet.characteristics}</strong></div>
-    </div>
+    
+      **This pet is reported lost**
+      Please contact the owner immediately — they are waiting for your call.
+
+    
+` : ''}
+    
+      ![](${pet.photo})
+      ${pet.name}
+      ${pet.breed} · ${pet.age}
+
+    
+
+    [📞 Call Owner](tel:${owner.phone})
+    
+      Pet Information
+
+      Breed**${pet.breed}**
+
+      Age**${pet.age}**
+
+      Characteristics**${pet.characteristics}**
+
+    
+
     ${(pet.allergies || pet.medications) ? `
-    <div style="background:#fffbe6;border-radius:18px;padding:16px;">
-      <strong style="color:#F47B20;text-transform:uppercase;font-size:0.8rem;">⚠️ Medical Alerts</strong>
-      ${pet.allergies ? `<p style="margin:8px 0 0;color:#7a4f2e;">• Allergies: ${pet.allergies}</p>` : ''}
-      ${pet.medications ? `<p style="margin:6px 0 0;color:#7a4f2e;">• Medications: ${pet.medications}</p>` : ''}
-    </div>` : ''}
+    
+      **⚠️ Medical Alerts**
+      ${pet.allergies ? `• Allergies: ${pet.allergies}
+
+` : ''}
+      ${pet.medications ? `• Medications: ${pet.medications}
+
+` : ''}
+    
+` : ''}
   `;
 
   try {
