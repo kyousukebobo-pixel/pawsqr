@@ -1980,7 +1980,19 @@ function attachEvents() {
   });
 }
 
+async function showPublicPetProfile(qrCodeText) {
+  const rawCode = normalizeQrText(qrCodeText);
+  await renderFinderResult(rawCode);
+}
+
 async function init() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const qrParam = urlParams.get('qr');
+  if (qrParam) {
+    await showPublicPetProfile(qrParam);
+    return;
+  }
+
   // Restore session from storage on page load
   STATE.isAdmin = false;
   loadSession();
