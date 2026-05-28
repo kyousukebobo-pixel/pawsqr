@@ -1606,43 +1606,43 @@ async function renderFinderResult(rawCode) {
   showView('finderScreen');
   const result = $('finderResult');
   result.innerHTML = `
-    ${pet.is_lost ? `
-    
-      **This pet is reported lost**
-      Please contact the owner immediately — they are waiting for your call.
+    <div class="public-pet-profile">
+      ${pet.is_lost ? `
+        <div class="lost-alert">
+          <strong>This pet is reported lost</strong>
+          <p>Please contact the owner immediately — they are waiting for your call.</p>
+        </div>
+      ` : ''}
 
-    
-` : ''}
-    
-      ![](${pet.photo})
-      ${pet.name}
-      ${pet.breed} · ${pet.age}
+      <div class="public-pet-hero">
+        <img src="${pet.photo}" alt="${pet.name}" />
+        <div class="public-pet-summary">
+          <h2>${pet.name}</h2>
+          <p>${pet.breed} · ${pet.age}</p>
+        </div>
+      </div>
 
-    
+      ${owner && owner.phone ? `
+        <div class="public-pet-contact">
+          <a href="tel:${owner.phone}">📞 Call Owner</a>
+        </div>
+      ` : ''}
 
-    [📞 Call Owner](tel:${owner.phone})
-    
-      Pet Information
+      <section class="public-pet-details">
+        <h3>Pet Information</h3>
+        <p><strong>Breed:</strong> ${pet.breed}</p>
+        <p><strong>Age:</strong> ${pet.age}</p>
+        <p><strong>Characteristics:</strong> ${pet.characteristics}</p>
+      </section>
 
-      Breed**${pet.breed}**
-
-      Age**${pet.age}**
-
-      Characteristics**${pet.characteristics}**
-
-    
-
-    ${(pet.allergies || pet.medications) ? `
-    
-      **⚠️ Medical Alerts**
-      ${pet.allergies ? `• Allergies: ${pet.allergies}
-
-` : ''}
-      ${pet.medications ? `• Medications: ${pet.medications}
-
-` : ''}
-    
-` : ''}
+      ${(pet.allergies || pet.medications) ? `
+        <section class="public-pet-medical">
+          <h3>Medical Alerts</h3>
+          ${pet.allergies ? `<p><strong>Allergies:</strong> ${pet.allergies}</p>` : ''}
+          ${pet.medications ? `<p><strong>Medications:</strong> ${pet.medications}</p>` : ''}
+        </section>
+      ` : ''}
+    </div>
   `;
 
   try {
@@ -1989,6 +1989,7 @@ async function init() {
   const urlParams = new URLSearchParams(window.location.search);
   const qrParam = urlParams.get('qr');
   if (qrParam) {
+    await prepareQrBaseUrl();
     await showPublicPetProfile(qrParam);
     return;
   }
