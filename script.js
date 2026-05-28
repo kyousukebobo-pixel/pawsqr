@@ -206,31 +206,7 @@ function isLocalHost(origin) {
 }
 
 async function prepareQrBaseUrl() {
-  // Priority 1: explicit override from hosting environment (useful for ngrok or production)
-  if (window.PETNET_BASE_URL) {
-    QR_BASE_URL = window.PETNET_BASE_URL.replace(/\/$/, '');
-    return;
-  }
-
-  const origin = window.location.origin || '';
-  // Avoid using machine-local hostnames that won't resolve on mobile (.local or custom hostnames)
-  if (origin && !isLocalHost(origin) && !origin.includes('.local')) {
-    QR_BASE_URL = origin;
-    return;
-  }
-
-  // Try to find a LAN IP candidate (IPv4) as a fallback for testing on same Wi-Fi network
-  const localIps = await getLocalIpCandidates();
-  const fallbackIp = localIps.find((ip) => ip && !ip.startsWith('127.') && !ip.startsWith('169.') && !ip.includes(':'));
-  if (fallbackIp) {
-    const port = window.location.port ? `:${window.location.port}` : '';
-    QR_BASE_URL = `${window.location.protocol}//${fallbackIp}${port}`;
-    return;
-  }
-
-  // If we couldn't determine a usable URL, leave empty and warn the developer
-  QR_BASE_URL = '';
-  console.warn('QR_BASE_URL not set. For mobile scanning, set window.PETNET_BASE_URL to an accessible URL (e.g. http://192.168.1.X:5500) or use a tunnel like ngrok.');
+  QR_BASE_URL = 'https://kyousukebobo-pixel.github.io/pawsqr';
 }
 
 function normalizeQrText(scannedText) {
