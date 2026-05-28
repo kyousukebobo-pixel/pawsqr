@@ -610,9 +610,9 @@ button.facebook {
 
 .pet-card img {
   width: 100%;
-  border-radius: 16px;
-  height: 190px;
+  height: 240px;
   object-fit: cover;
+  border-radius: 16px;
 }
 
 .pet-card h4,

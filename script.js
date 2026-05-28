@@ -1984,53 +1984,60 @@ async function showPublicPetProfile(qrCodeText) {
   }
 
   const ownerPhone = owner && owner.phone ? owner.phone : '';
-  const medicalItems = [];
-  if (pet.allergies) medicalItems.push(`<li><strong>Allergies:</strong> ${pet.allergies}</li>`);
-  if (pet.medications) medicalItems.push(`<li><strong>Medications:</strong> ${pet.medications}</li>`);
-  if (pet.immunizations) medicalItems.push(`<li><strong>Immunizations:</strong> ${pet.immunizations}</li>`);
 
   document.body.innerHTML = `
-    <div class="public-profile-shell">
-      <header class="public-profile-header">
-        <div class="public-profile-brand">PawsQR</div>
-        <p class="public-profile-subtitle">Pet profile</p>
-      </header>
+  
+    
+      PawsQR
+      Pet Profile
+    
 
-      <main class="public-profile-card">
-        ${pet.is_lost ? `
-          <section class="lost-banner">
-            <strong>This pet is reported lost</strong>
-            <p>Please contact the owner immediately — they are waiting for your call.</p>
-          </section>
-        ` : ''}
+    ${pet.is_lost ? `
+    
+      **This pet is reported lost**
+      Please contact the owner immediately — they are waiting for your call.
 
-        <section class="public-profile-hero">
-          <img src="${pet.photo || ''}" alt="${pet.name}" class="public-profile-photo" />
-          <div class="public-profile-summary">
-            <h1>${pet.name}</h1>
-            <p class="public-profile-meta">${pet.breed || 'Unknown breed'} · ${pet.age || 'Age unknown'}</p>
-            ${ownerPhone ? `<a class="call-owner-link" href="tel:${ownerPhone}">📞 Call Owner</a>` : ''}
-          </div>
-        </section>
+    
+` : ''}
+    
+      ![${pet.name}](${pet.photo || ''})
+      ${pet.name}
+      ${pet.breed} · ${pet.age}
 
-        <section class="public-profile-section">
-          <h2>Pet Information</h2>
-          ${pet.breed ? `<p><strong>Breed</strong><span>${pet.breed}</span></p>` : ''}
-          ${pet.age ? `<p><strong>Age</strong><span>${pet.age}</span></p>` : ''}
-          ${pet.characteristics ? `<p><strong>Characteristics</strong><span>${pet.characteristics}</span></p>` : ''}
-        </section>
+    
 
-        ${medicalItems.length ? `
-          <section class="public-profile-section">
-            <h2>Medical Alerts</h2>
-            <ul class="public-profile-medical-list">${medicalItems.join('')}</ul>
-          </section>
-        ` : ''}
-      </main>
+    ${ownerPhone ? `
+    [Call Owner](tel:${ownerPhone})` : ''}
+    
+      PET INFORMATION
 
-      <footer class="public-profile-footer">Powered by PawsQR</footer>
-    </div>
-  `;
+      ${pet.breed ? `BREED${pet.breed}
+` : ''}
+      ${pet.age ? `AGE${pet.age}
+` : ''}
+      ${pet.characteristics ? `CHARACTERISTICS${pet.characteristics}
+` : ''}
+    
+
+    ${(pet.allergies || pet.medications || pet.immunizations) ? `
+    
+      MEDICAL ALERTS
+
+      ${pet.allergies ? `• Allergies: ${pet.allergies}
+
+` : ''}
+      ${pet.medications ? `• Medications: ${pet.medications}
+
+` : ''}
+      ${pet.immunizations ? `• Immunizations: ${pet.immunizations}
+
+` : ''}
+    
+` : ''}
+    Powered by PawsQR
+
+  
+`;
 }
 
 async function init() {
