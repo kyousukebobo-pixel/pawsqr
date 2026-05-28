@@ -1211,6 +1211,11 @@ async function login(email, password) {
 
   saveCurrentUser(data);
   setNavigation();
+  if (STATE.pendingQrCode) {
+    beginPetRegistration(null, STATE.pendingQrCode);
+    STATE.pendingQrCode = null;
+    return;
+  }
   await routeAfterLogin();
 }
 
@@ -1243,6 +1248,11 @@ async function registerUser() {
   saveCurrentUser(data);
   setNavigation();
   document.getElementById('createAccountForm').reset();
+  if (STATE.pendingQrCode) {
+    beginPetRegistration(null, STATE.pendingQrCode);
+    STATE.pendingQrCode = null;
+    return;
+  }
   await routeAfterLogin();
 }
 
@@ -1578,100 +1588,66 @@ async function renderFinderResult(rawCode) {
   const qrCodes = await loadData('qr_codes');
   const pets = await loadData('pets');
   const users = await loadData('users');
-  const result = $('finderResult');
-
-  showView('finderScreen');
-  if (!result) return;
-
-  result.className = 'finder-result public-profile-result';
-  result.innerHTML = '';
 
   const qrCode = qrCodes.find((q) => q.code === rawCode);
-  if (!qrCode || !qrCode.pet_id) {
-    result.innerHTML = `
-      <div class="public-profile-shell">
-        <div class="public-profile-brand">PawsQR</div>
-        <div class="public-profile-status-card">
-          <div class="public-profile-status-title">Pet not found</div>
-          <div class="public-profile-status-copy">This collar has not been linked to a pet profile yet.</div>
-        </div>
-      </div>
-    `;
+
+  if (!qrCode) {
+    showMessage('QR code not recognized.');
+    return;
+  }
+
+  if (!qrCode.pet_id) {
+    STATE.pendingQrCode = qrCode;
+    if (STATE.currentUser) {
+      beginPetRegistration(null, qrCode);
+    } else {
+      toggleLoginState('form');
+      showView('loginScreen');
+    }
     return;
   }
 
   const pet = pets.find((p) => p.id === qrCode.pet_id);
   const owner = users.find((u) => u.id === pet.owner_id);
-  const contactHref = owner && owner.phone ? `tel:${owner.phone}` : '#';
-  const hasAllergies = pet.allergies && pet.allergies.trim();
-  const hasMedications = pet.medications && pet.medications.trim();
 
+  showView('finderScreen');
+  const result = $('finderResult');
   result.innerHTML = `
-    <div class="public-profile-shell">
-      <div class="public-profile-brand">PawsQR</div>
-
-      ${pet.is_lost ? `
-        <div class="public-profile-lost-alert" role="alert">
-          <div class="public-profile-lost-title">This pet is reported lost</div>
-          <div class="public-profile-lost-subtext">Please contact the owner immediately — they are waiting for your call.</div>
-        </div>
-      ` : ''}
-
-      <div class="public-profile-photo-wrap">
-        <img class="public-profile-photo" src="${pet.photo || ''}" alt="${pet.name}" />
-      </div>
-
-      <h1 class="public-profile-name">${pet.name}</h1>
-      <p class="public-profile-meta">${pet.breed || 'Unknown breed'} · ${pet.age || 'Age unknown'}</p>
-
-      <a class="public-profile-action" href="${contactHref}">Call Owner</a>
-
-      <section class="public-profile-info-card" aria-label="Pet information">
-        <div class="public-profile-info-row">
-          <div class="public-profile-info-label">Breed</div>
-          <div class="public-profile-info-value">${pet.breed || 'Unknown breed'}</div>
-        </div>
-        <div class="public-profile-info-row">
-          <div class="public-profile-info-label">Age</div>
-          <div class="public-profile-info-value">${pet.age || 'Age unknown'}</div>
-        </div>
-        <div class="public-profile-info-row">
-          <div class="public-profile-info-label">Characteristics</div>
-          <div class="public-profile-info-value">${pet.characteristics || 'No characteristics listed.'}</div>
-        </div>
-      </section>
-
-      ${hasAllergies || hasMedications ? `
-        <section class="public-profile-medical-card" aria-label="Medical alerts">
-          <div class="public-profile-medical-header">
-            <span class="public-profile-medical-icon">⚠️</span>
-            <span>Medical Alerts</span>
-          </div>
-          <ul class="public-profile-medical-list">
-            ${hasAllergies ? `<li><strong>Allergies:</strong> ${pet.allergies}</li>` : ''}
-            ${hasMedications ? `<li><strong>Medications:</strong> ${pet.medications}</li>` : ''}
-          </ul>
-        </section>
-      ` : ''}
+    ${pet.is_lost ? `
+    <div style="background:#fff0f0;border-radius:16px;padding:16px;margin-bottom:20px;border:1px solid #ffcccc;">
+      <strong style="color:#cc0000;">🔴 This pet is reported lost</strong>
+      <p style="color:#cc0000;margin:6px 0 0;">Please contact the owner immediately — they are waiting for your call.</p>
+    </div>` : ''}
+    <div style="display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:20px;">
+      <img src="${pet.photo}" style="width:140px;height:140px;border-radius:50%;object-fit:cover;border:4px solid white;box-shadow:0 4px 16px rgba(0,0,0,0.15);" />
+      <h2 style="margin:0;font-size:1.8rem;">${pet.name}</h2>
+      <p style="margin:0;color:#888;">${pet.breed} · ${pet.age}</p>
     </div>
+    <a href="tel:${owner.phone}" style="display:block;width:100%;background:#F47B20;color:white;text-align:center;padding:16px;border-radius:50px;font-weight:800;font-size:1rem;text-decoration:none;margin-bottom:20px;">📞 Call Owner</a>
+    <div style="background:white;border-radius:18px;padding:16px;margin-bottom:16px;">
+      <p style="color:#aaa;font-size:0.75rem;font-weight:700;text-transform:uppercase;margin:0 0 12px;">Pet Information</p>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0;"><span style="color:#aaa;font-size:0.8rem;text-transform:uppercase;">Breed</span><strong>${pet.breed}</strong></div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0;"><span style="color:#aaa;font-size:0.8rem;text-transform:uppercase;">Age</span><strong>${pet.age}</strong></div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;"><span style="color:#aaa;font-size:0.8rem;text-transform:uppercase;">Characteristics</span><strong>${pet.characteristics}</strong></div>
+    </div>
+    ${(pet.allergies || pet.medications) ? `
+    <div style="background:#fffbe6;border-radius:18px;padding:16px;">
+      <strong style="color:#F47B20;text-transform:uppercase;font-size:0.8rem;">⚠️ Medical Alerts</strong>
+      ${pet.allergies ? `<p style="margin:8px 0 0;color:#7a4f2e;">• Allergies: ${pet.allergies}</p>` : ''}
+      ${pet.medications ? `<p style="margin:6px 0 0;color:#7a4f2e;">• Medications: ${pet.medications}</p>` : ''}
+    </div>` : ''}
   `;
 
-  // Save a scan record to Supabase (Finder lookup)
   try {
-    const { error: scanError } = await db.from('scan_history').insert([{
+    await db.from('scan_history').insert([{
       qr_code_id: qrCode.id,
       scanned_by: STATE.currentUser ? [STATE.currentUser.first_name, STATE.currentUser.last_name].filter(Boolean).join(' ') : 'Anonymous',
-      location: null,
       scanned_at: new Date().toISOString(),
-      user_id: owner ? owner.id : null,
       pet_id: pet.id,
       qr_code_text: qrCode.code,
       action: 'Finder lookup'
     }]);
-    if (scanError) console.error('Error saving scan history:', scanError);
-  } catch (e) {
-    console.error('Unexpected error saving scan history:', e);
-  }
+  } catch(e) {}
 }
 
 async function recordHistory(entry) {
