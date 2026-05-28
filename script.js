@@ -175,8 +175,8 @@ function getQrPayload(rawCode) {
   if (!QR_BASE_URL) {
     return rawCode;
   }
-  const path = window.location.pathname || '/';
-  return `${QR_BASE_URL}${path}?qr=${encodeURIComponent(rawCode)}`;
+  const normalizedBaseUrl = QR_BASE_URL.replace(/\/+$/, '');
+  return `${normalizedBaseUrl}/?qr=${encodeURIComponent(rawCode)}`;
 }
 
 function getLocalIpCandidates() {
