@@ -1986,57 +1986,27 @@ async function showPublicPetProfile(qrCodeText) {
   const ownerPhone = owner && owner.phone ? owner.phone : '';
 
   document.body.innerHTML = `
-  
-    
-      PawsQR
-      Pet Profile
-    
-
-    ${pet.is_lost ? `
-    
-      **This pet is reported lost**
-      Please contact the owner immediately — they are waiting for your call.
-
-    
-` : ''}
-    
-      ![${pet.name}](${pet.photo || ''})
-      ${pet.name}
-      ${pet.breed} · ${pet.age}
-
-    
-
-    ${ownerPhone ? `
-    [Call Owner](tel:${ownerPhone})` : ''}
-    
-      PET INFORMATION
-
-      ${pet.breed ? `BREED${pet.breed}
-` : ''}
-      ${pet.age ? `AGE${pet.age}
-` : ''}
-      ${pet.characteristics ? `CHARACTERISTICS${pet.characteristics}
-` : ''}
-    
-
-    ${(pet.allergies || pet.medications || pet.immunizations) ? `
-    
-      MEDICAL ALERTS
-
-      ${pet.allergies ? `• Allergies: ${pet.allergies}
-
-` : ''}
-      ${pet.medications ? `• Medications: ${pet.medications}
-
-` : ''}
-      ${pet.immunizations ? `• Immunizations: ${pet.immunizations}
-
-` : ''}
-    
-` : ''}
-    Powered by PawsQR
-
-  
+  <div style="max-width:480px;margin:0 auto;font-family:Inter,sans-serif;background:#f9f9f9;min-height:100vh;">
+    <div style="background:#F5D97E;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:#F47B20;font-weight:900;font-size:1.1rem;">PawsQR</span>
+      <span style="color:#888;font-size:0.85rem;font-weight:600;">Pet Profile</span>
+    </div>
+    ${pet.is_lost ? `<div style="background:#fff0f0;border-left:4px solid #e63946;border-radius:12px;padding:14px 16px;margin:16px;"><strong style="color:#e63946;display:block;margin-bottom:4px;">This pet is reported lost</strong><p style="color:#e63946;font-size:0.85rem;margin:0;">Please contact the owner immediately — they are waiting for your call.</p></div>` : ''}
+    <div style="display:flex;flex-direction:column;align-items:center;padding:24px 16px 16px;">
+      <img src="${pet.photo || ''}" alt="${pet.name}" style="width:140px;height:140px;border-radius:50%;object-fit:cover;border:4px solid white;box-shadow:0 4px 20px rgba(0,0,0,0.15);" />
+      <h2 style="font-size:1.8rem;font-weight:800;margin:12px 0 4px;">${pet.name}</h2>
+      <p style="color:#888;margin:0;">${pet.breed} · ${pet.age}</p>
+    </div>
+    ${ownerPhone ? `<a href="tel:${ownerPhone}" style="display:block;margin:0 16px 12px;background:#F47B20;color:white;text-align:center;padding:16px;border-radius:14px;font-weight:700;font-size:1rem;text-decoration:none;">Call Owner</a>` : ''}
+    <div style="background:white;border-radius:16px;margin:0 16px 12px;padding:16px;">
+      <p style="font-size:0.7rem;font-weight:700;color:#aaa;letter-spacing:0.08em;margin:0 0 12px;">PET INFORMATION</p>
+      ${pet.breed ? `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;"><span style="color:#aaa;font-size:0.82rem;">BREED</span><span style="font-weight:600;">${pet.breed}</span></div>` : ''}
+      ${pet.age ? `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;"><span style="color:#aaa;font-size:0.82rem;">AGE</span><span style="font-weight:600;">${pet.age}</span></div>` : ''}
+      ${pet.characteristics ? `<div style="display:flex;justify-content:space-between;padding:10px 0;"><span style="color:#aaa;font-size:0.82rem;">CHARACTERISTICS</span><span style="font-weight:600;text-align:right;max-width:60%;">${pet.characteristics}</span></div>` : ''}
+    </div>
+    ${(pet.allergies || pet.medications || pet.immunizations) ? `<div style="background:#fffbe6;border:1px solid #ffe58f;border-radius:16px;margin:0 16px 12px;padding:16px;"><p style="font-size:0.7rem;font-weight:700;color:#d48806;letter-spacing:0.08em;margin:0 0 10px;">MEDICAL ALERTS</p>${pet.allergies ? `<p style="color:#d48806;font-size:0.88rem;margin:0 0 6px;">• Allergies: ${pet.allergies}</p>` : ''}${pet.medications ? `<p style="color:#d48806;font-size:0.88rem;margin:0 0 6px;">• Medications: ${pet.medications}</p>` : ''}${pet.immunizations ? `<p style="color:#d48806;font-size:0.88rem;margin:0;">• Immunizations: ${pet.immunizations}</p>` : ''}</div>` : ''}
+    <p style="text-align:center;padding:16px;color:#ccc;font-size:0.75rem;">Powered by PawsQR</p>
+  </div>
 `;
 }
 
