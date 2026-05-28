@@ -804,42 +804,55 @@ function loginSocialUser(provider) {
 }
 
 function triggerGoogleSignIn() {
-  if (!window.google || !window.google.accounts || !window.google.accounts.id) {
-    showMessage('Google Sign-In service is not available. Please ensure Google Identity Services library is loaded.');
+  if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) {
+    showMessage('Google Sign-In is not available. Please try again.');
     return;
   }
 
-  try {
-    // Ensure we don't auto-select an already signed-in account
-    if (google.accounts.id.disableAutoSelect) google.accounts.id.disableAutoSelect();
-
-    // Try One Tap first; if it doesn't display, render a popup button and open it
-    google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        // If One Tap doesn't show, fall back to programmatic popup sign-in
-        let btn = document.getElementById('petnet-google-btn');
-        if (!btn) {
-          btn = document.createElement('div');
-          btn.id = 'petnet-google-btn';
-          btn.style.position = 'fixed';
-          btn.style.left = '-9999px';
-          document.body.appendChild(btn);
-        }
-        google.accounts.id.renderButton(
-          btn,
-          { type: 'standard', size: 'large', theme: 'outline', text: 'signin_with' }
-        );
-        // Click the hidden button to open the popup chooser
-        setTimeout(() => {
-          const rendered = btn.querySelector('button');
-          if (rendered) rendered.click();
-        }, 100);
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: 'email profile',
+    callback: async (response) => {
+      if (response.error) {
+        showMessage('Google Sign-In failed. Please try again.');
+        return;
       }
-    });
-  } catch (error) {
-    console.error('Google Sign-In error:', error);
-    showMessage('Google Sign-In failed. Please try again.');
-  }
+      try {
+        const res = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${response.access_token}`);
+        const profile = await res.json();
+        let user = await getUserByEmail(profile.email);
+        if (user) {
+          saveCurrentUser(user);
+          setNavigation();
+          if (user.role === 'admin') {
+            renderAdminPanel();
+          } else {
+            await routeAfterLogin();
+          }
+        } else {
+          const phone = prompt('Welcome! Please enter your phone number:');
+          if (!phone) { showMessage('Phone number is required.'); return; }
+          const { first_name, last_name } = splitFullName(profile.name);
+          const newUser = {
+            first_name, last_name,
+            email: profile.email.toLowerCase(),
+            phone,
+            password: `google-${profile.sub}`,
+            role: 'user',
+            provider: 'google',
+            picture: profile.picture,
+          };
+          const savedUser = await saveData('users', newUser);
+          saveCurrentUser(savedUser);
+          setNavigation();
+          await routeAfterLogin();
+        }
+      } catch (err) {
+        showMessage('Google Sign-In failed. Please try again.');
+      }
+    },
+  });
+  client.requestAccessToken();
 }
 
 function handleGoogleSignInResponse(response) {
@@ -939,21 +952,7 @@ function splitFullName(fullName) {
 }
 
 function initGoogleSignIn() {
-  if (!window.google) {
-    console.warn('Google Identity Services library not yet loaded.');
-    return;
-  }
-
-  try {
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleSignInResponse,
-      auto_select: false, // Disable auto-select to require user action
-      ux_mode: 'popup', // Use popup instead of redirect
-    });
-  } catch (error) {
-    console.error('Google Sign-In initialization error:', error);
-  }
+  // OAuth2 token client is initialized on demand in triggerGoogleSignIn()
 }
 
 // Initialize Facebook SDK (client-side). Set `FACEBOOK_APP_ID` above.
