@@ -1940,14 +1940,104 @@ function attachEvents() {
 }
 
 async function showPublicPetProfile(qrCodeText) {
-  const rawCode = normalizeQrText(qrCodeText);
-  await renderFinderResult(rawCode);
+  const normalizedQrCode = normalizeQrText(qrCodeText);
+
+  const { data: qr, error: qrError } = await db
+    .from('qr_codes')
+    .select('*')
+    .eq('code', normalizedQrCode)
+    .single();
+
+  if (qrError || !qr) {
+    document.body.innerHTML = '<main class="public-profile-error">QR code not found.</main>';
+    return;
+  }
+
+  const { data: pet, error: petError } = await db
+    .from('pets')
+    .select('*')
+    .eq('qr_code_id', qr.id)
+    .single();
+
+  if (petError || !pet) {
+    window.location.href = window.location.origin + window.location.pathname;
+    return;
+  }
+
+  const { data: owner } = await db
+    .from('users')
+    .select('*')
+    .eq('id', pet.owner_id)
+    .single();
+
+  try {
+    await db.from('scan_history').insert([{
+      qr_code_id: qr.id,
+      scanned_by: 'Anonymous',
+      scanned_at: new Date().toISOString(),
+      pet_id: pet.id,
+      qr_code_text: qr.code,
+      action: 'Public QR lookup'
+    }]);
+  } catch (error) {
+    console.error('Error recording public scan history:', error);
+  }
+
+  const ownerPhone = owner && owner.phone ? owner.phone : '';
+  const medicalItems = [];
+  if (pet.allergies) medicalItems.push(`<li><strong>Allergies:</strong> ${pet.allergies}</li>`);
+  if (pet.medications) medicalItems.push(`<li><strong>Medications:</strong> ${pet.medications}</li>`);
+  if (pet.immunizations) medicalItems.push(`<li><strong>Immunizations:</strong> ${pet.immunizations}</li>`);
+
+  document.body.innerHTML = `
+    <div class="public-profile-shell">
+      <header class="public-profile-header">
+        <div class="public-profile-brand">PawsQR</div>
+        <p class="public-profile-subtitle">Pet profile</p>
+      </header>
+
+      <main class="public-profile-card">
+        ${pet.is_lost ? `
+          <section class="lost-banner">
+            <strong>This pet is reported lost</strong>
+            <p>Please contact the owner immediately — they are waiting for your call.</p>
+          </section>
+        ` : ''}
+
+        <section class="public-profile-hero">
+          <img src="${pet.photo || ''}" alt="${pet.name}" class="public-profile-photo" />
+          <div class="public-profile-summary">
+            <h1>${pet.name}</h1>
+            <p class="public-profile-meta">${pet.breed || 'Unknown breed'} · ${pet.age || 'Age unknown'}</p>
+            ${ownerPhone ? `<a class="call-owner-link" href="tel:${ownerPhone}">📞 Call Owner</a>` : ''}
+          </div>
+        </section>
+
+        <section class="public-profile-section">
+          <h2>Pet Information</h2>
+          ${pet.breed ? `<p><strong>Breed</strong><span>${pet.breed}</span></p>` : ''}
+          ${pet.age ? `<p><strong>Age</strong><span>${pet.age}</span></p>` : ''}
+          ${pet.characteristics ? `<p><strong>Characteristics</strong><span>${pet.characteristics}</span></p>` : ''}
+        </section>
+
+        ${medicalItems.length ? `
+          <section class="public-profile-section">
+            <h2>Medical Alerts</h2>
+            <ul class="public-profile-medical-list">${medicalItems.join('')}</ul>
+          </section>
+        ` : ''}
+      </main>
+
+      <footer class="public-profile-footer">Powered by PawsQR</footer>
+    </div>
+  `;
 }
 
 async function init() {
   const urlParams = new URLSearchParams(window.location.search);
   const qrParam = urlParams.get('qr');
   if (qrParam) {
+    document.body.innerHTML = 'Loading...';
     await prepareQrBaseUrl();
     await showPublicPetProfile(qrParam);
     return;
