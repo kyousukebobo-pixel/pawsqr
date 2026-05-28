@@ -1093,47 +1093,6 @@ async function routeToView() {
   setNavigation();
   
   const hash = location.hash.replace('#', '');
-  const queryParams = new URLSearchParams(window.location.search);
-  const deepQr = queryParams.get('qr');
-  
-  // SCENARIO A: Deep-link via QR code scan (handle before checking currentUser)
-  // This is public - works whether user is logged in or not
-  if (deepQr) {
-    const rawCode = normalizeQrText(deepQr);
-    const qrCodes = await loadData('qr_codes');
-    const qrCode = qrCodes.find((q) => q.code === rawCode);
-    
-    if (!qrCode) {
-      // QR code doesn't exist in system
-      showMessage('This QR code is not recognized. Please contact support.');
-      showView('loginScreen');
-      return;
-    }
-    
-    // SCENARIO B: QR code is REGISTERED to a pet - show pet info (public finder view)
-    if (qrCode.status === 'assigned' && qrCode.pet_id) {
-      await renderFinderResult(rawCode);
-      return;
-    }
-    
-    // SCENARIO C: QR code is UNREGISTERED (available)
-    if (qrCode.status === 'available') {
-      STATE.pendingQrCode = qrCode;
-      if (STATE.currentUser) {
-        await beginPetRegistration(null, qrCode);
-        STATE.pendingQrCode = null;
-        return;
-      }
-      showView('loginScreen');
-      showMessage('Welcome! This collar is ready to be registered. Please log in or create an account.');
-      return;
-    }
-    
-    // SCENARIO D: QR code exists but is deactivated or lost - show error
-    showMessage('This collar has been deactivated or marked as lost. Please contact support.');
-    showView('loginScreen');
-    return;
-  }
   
   if (!STATE.currentUser) {
     showView('loginScreen');
