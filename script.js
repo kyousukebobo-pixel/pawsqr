@@ -1708,6 +1708,10 @@ async function submitPetForm(event) {
       immunizations: petImmunizations,
       qr_code_id: qr.id,
     });
+    await updateData('qr_codes', qr.id, {
+      pet_id: editingId,
+      status: 'assigned',
+    });
     if (existingPet.qr_code_id !== qr.id) {
       const previousIndex = qrCodes.findIndex((code) => code.id === existingPet.qr_code_id);
       if (previousIndex >= 0) {
