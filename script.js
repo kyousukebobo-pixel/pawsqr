@@ -1670,7 +1670,7 @@ async function submitPetForm(event) {
   const petImmunizations = $('petImmunizations').value.trim();
   const editingId = $('editingPetId').value;
 
-  if (!STATE.currentQrVerification) {
+  if (!STATE.currentQrVerification && !editingId) {
     showMessage('You must scan a QR code first.');
     return;
   }
