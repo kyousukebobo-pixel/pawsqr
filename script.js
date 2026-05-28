@@ -29,6 +29,8 @@ const GOOGLE_CLIENT_ID = '540931981374-205a6qbbrte6lhulq32g5gcqt1adop3c.apps.goo
 // NOTE: For production, store CLIENT_ID securely and use backend validation of tokens
 
 let QR_BASE_URL = '';
+let petQrModal = null;
+let petQrModalEscapeHandler = null;
 
 function $(id) {
   return document.getElementById(id);
@@ -104,6 +106,14 @@ function showView(viewId) {
   const target = $(viewId);
   target.classList.remove('hidden');
   target.classList.add('active');
+
+  if (viewId === 'finderScreen') {
+    document.body.style.background = '#ffffff';
+    document.body.style.backgroundColor = '#ffffff';
+  } else {
+    document.body.style.background = '#F47B20';
+    document.body.style.backgroundColor = '#F47B20';
+  }
   
   // Reset all nav button highlights
   document.querySelectorAll('.top-nav button').forEach((btn) => {
@@ -278,6 +288,247 @@ function createQRCodeElement(container, text, label = 'QR Code') {
   container.appendChild(holder);
 }
 
+function closePetQrModal() {
+  if (!petQrModal) return;
+  petQrModal.classList.add('hidden');
+  document.body.style.overflow = '';
+  if (petQrModalEscapeHandler) {
+    window.removeEventListener('keydown', petQrModalEscapeHandler);
+    petQrModalEscapeHandler = null;
+  }
+}
+
+async function copyTextToClipboard(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (error) {
+    console.warn('Clipboard API unavailable, falling back to execCommand:', error);
+  }
+
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+  textArea.style.position = 'fixed';
+  textArea.style.opacity = '0';
+  textArea.style.pointerEvents = 'none';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  const copied = document.execCommand('copy');
+  document.body.removeChild(textArea);
+  return copied;
+}
+
+function ensurePetQrModal() {
+  if (petQrModal) return petQrModal;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'petQrModalOverlay';
+  overlay.className = 'qr-modal-overlay hidden';
+  overlay.innerHTML = `
+    <div class="qr-modal" role="dialog" aria-modal="true">
+      <div class="qr-modal-header">
+        <div>
+          <p class="qr-modal-kicker">PET QR</p>
+          <h2 class="qr-modal-title"></h2>
+        </div>
+        <button type="button" class="qr-modal-close" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="qr-modal-body">
+        <div class="qr-summary-row">
+          <div class="qr-code-label-block">
+            <div class="qr-code-label">COLLAR ID</div>
+            <div class="qr-code-value"></div>
+          </div>
+          <span class="linked-badge">Linked</span>
+        </div>
+
+        <div class="qr-display-card">
+          <div id="petQrDisplayStage" class="qr-display-stage"></div>
+          <div class="qr-pet-name"></div>
+          <div class="qr-pet-meta"></div>
+        </div>
+
+        <label class="qr-url-label" for="petQrUrlText">QR URL</label>
+        <input id="petQrUrlText" class="qr-url-display" type="text" readonly />
+
+        <div class="qr-how-it-works"></div>
+
+        <div class="qr-actions" aria-label="QR actions">
+          <button type="button" id="petQrDownloadBtn" class="secondary">Download</button>
+          <button type="button" id="petQrCopyBtn" class="secondary">Copy Link</button>
+          <button type="button" id="petQrPrintBtn" class="secondary">Print</button>
+        </div>
+
+        <div class="scan-activity-panel">
+          <div class="scan-activity-header">
+            <div>
+              <div class="scan-activity-eyebrow">SCAN ACTIVITY</div>
+              <h3 class="scan-activity-title">LAST 7 DAYS</h3>
+            </div>
+            <div class="scan-total-pill"></div>
+          </div>
+          <div id="petQrChart" class="scan-chart-grid"></div>
+          <div class="scan-last-scanned"></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      closePetQrModal();
+    }
+  });
+
+  overlay.querySelector('.qr-modal-close').addEventListener('click', closePetQrModal);
+  document.body.appendChild(overlay);
+  petQrModal = overlay;
+  return petQrModal;
+}
+
+async function openPetQrModal(pet, qrCode) {
+  const modal = ensurePetQrModal();
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+
+  const title = modal.querySelector('.qr-modal-title');
+  const collarValue = modal.querySelector('.qr-code-value');
+  const petNameEl = modal.querySelector('.qr-pet-name');
+  const petMetaEl = modal.querySelector('.qr-pet-meta');
+  const qrUrlInput = modal.querySelector('#petQrUrlText');
+  const howItWorks = modal.querySelector('.qr-how-it-works');
+  const chart = modal.querySelector('#petQrChart');
+  const totalPill = modal.querySelector('.scan-total-pill');
+  const lastScannedEl = modal.querySelector('.scan-last-scanned');
+  const qrStage = modal.querySelector('#petQrDisplayStage');
+  const downloadBtn = modal.querySelector('#petQrDownloadBtn');
+  const copyBtn = modal.querySelector('#petQrCopyBtn');
+  const printBtn = modal.querySelector('#petQrPrintBtn');
+
+  const qrUrl = getQrPayload(qrCode.code);
+  const petName = pet.name;
+  title.textContent = `QR Code — ${petName}`;
+  collarValue.textContent = qrCode.code;
+  petNameEl.textContent = petName;
+  petMetaEl.textContent = `${pet.breed || 'Unknown breed'} • ${pet.age || 'Age unknown'}`;
+  qrUrlInput.value = qrUrl;
+  howItWorks.textContent = `First scan → registration page to link the collar. Every scan after → goes straight to ${petName}'s profile.`;
+
+  qrStage.innerHTML = '';
+  new QRCode(qrStage, {
+    text: qrUrl,
+    width: 260,
+    height: 260,
+    colorDark: '#14213d',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H,
+  });
+
+  downloadBtn.textContent = 'Download';
+  copyBtn.textContent = 'Copy Link';
+  copyBtn.disabled = false;
+
+  copyBtn.onclick = async () => {
+    const copied = await copyTextToClipboard(qrUrl);
+    copyBtn.textContent = copied ? 'Copied!' : 'Copy Link';
+    if (copied) {
+      window.setTimeout(() => {
+        copyBtn.textContent = 'Copy Link';
+      }, 1500);
+    }
+  };
+
+  downloadBtn.onclick = () => {
+    const canvas = qrStage.querySelector('canvas');
+    const imageSource = canvas ? canvas.toDataURL('image/png') : (qrStage.querySelector('img') ? qrStage.querySelector('img').src : null);
+    if (!imageSource) return;
+    const anchor = document.createElement('a');
+    anchor.href = imageSource;
+    anchor.download = `${petName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'pet'}-qr.png`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  };
+
+  printBtn.onclick = () => {
+    const canvas = qrStage.querySelector('canvas');
+    const imageSource = canvas ? canvas.toDataURL('image/png') : (qrStage.querySelector('img') ? qrStage.querySelector('img').src : null);
+    if (!imageSource) return;
+    const printWindow = window.open('', '_blank', 'width=520,height=760');
+    if (!printWindow) return;
+    printWindow.document.write('<html><head><title>Print QR</title><style>body{font-family:Inter,system-ui,sans-serif;margin:0;padding:24px;background:#fff;color:#1a1a1a;} .print-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;} .print-title{font-size:24px;font-weight:800;margin:0;} .print-subtitle{margin:0;color:#6b3d1b;font-size:14px;} .print-image{max-width:320px;width:100%;border-radius:16px;border:1px solid #f0b97a;padding:12px;background:#fff;} .print-caption{font-size:12px;color:#6b3d1b;}</style></head><body>');
+    printWindow.document.write('<div class="print-wrap">');
+    printWindow.document.write(`<h1 class="print-title">${petName}</h1>`);
+    printWindow.document.write(`<p class="print-subtitle">Collar ID: ${qrCode.code}</p>`);
+    printWindow.document.write(`<img class="print-image" src="${imageSource}" alt="${petName} QR Code" />`);
+    printWindow.document.write(`<p class="print-caption">${qrUrl}</p>`);
+    printWindow.document.write('</div></body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
+  const { data: history = [] } = await db.from('scan_history').select('*').eq('qr_code_id', qrCode.id).order('scanned_at', { ascending: true });
+  const sevenDayBuckets = [];
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const day = new Date(base);
+    day.setDate(day.getDate() - offset);
+    const start = new Date(day);
+    const end = new Date(day);
+    end.setDate(end.getDate() + 1);
+    const count = history.filter((entry) => {
+      const scannedAt = new Date(entry.scanned_at || entry.created_at);
+      return scannedAt >= start && scannedAt < end;
+    }).length;
+    sevenDayBuckets.push({ day, count });
+  }
+
+  chart.innerHTML = '';
+  const maxCount = Math.max(...sevenDayBuckets.map((entry) => entry.count), 1);
+  sevenDayBuckets.forEach((entry) => {
+    const column = document.createElement('div');
+    column.className = 'scan-bar-column';
+    const fill = document.createElement('div');
+    fill.className = 'scan-bar-fill';
+    fill.style.height = `${Math.max((entry.count / maxCount) * 100, 12)}%`;
+    const value = document.createElement('div');
+    value.className = 'scan-bar-count';
+    value.textContent = entry.count;
+    const dayLabel = document.createElement('div');
+    dayLabel.className = 'scan-bar-day';
+    dayLabel.textContent = entry.day.toLocaleDateString(undefined, { weekday: 'short' });
+    column.append(fill, value, dayLabel);
+    chart.appendChild(column);
+  });
+
+  const totalCount = history.length;
+  totalPill.textContent = `${totalCount} total`;
+
+  const lastScan = history.slice().reverse().find((entry) => entry.scanned_at || entry.created_at);
+  if (lastScan) {
+    lastScannedEl.textContent = `Last scanned: ${new Date(lastScan.scanned_at || lastScan.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
+  } else {
+    lastScannedEl.textContent = 'Last scanned: No scans yet';
+  }
+
+  if (petQrModalEscapeHandler) {
+    window.removeEventListener('keydown', petQrModalEscapeHandler);
+  }
+  petQrModalEscapeHandler = (event) => {
+    if (event.key === 'Escape') {
+      closePetQrModal();
+    }
+  };
+  window.addEventListener('keydown', petQrModalEscapeHandler);
+}
+
 async function renderUserDashboard() {
   const pets = await loadData('pets');
   const qrCodes = await loadData('qr_codes');
@@ -343,18 +594,20 @@ async function renderUserDashboard() {
     editButton.className = 'primary';
     editButton.textContent = 'Edit';
     editButton.addEventListener('click', () => editPet(pet.id));
-    const printButton = document.createElement('button');
-    printButton.className = 'secondary';
-    printButton.textContent = 'Print Profile';
-    printButton.addEventListener('click', () => {
-      const win = window.open('', '_blank');
-      win.document.write('<html><head><title>Pet Profile</title><style>body{font-family:sans-serif;padding:24px;}img{max-width:100%;border-radius:16px;} h1,h2{margin-top:0;}</style></head><body>');
-      win.document.write(`<h1>${pet.name}</h1><img src="${pet.photo}" alt="${pet.name}"/><p><strong>Breed:</strong> ${pet.breed}</p><p><strong>Age:</strong> ${pet.age}</p><p><strong>Characteristics:</strong> ${pet.characteristics}</p><p><strong>Allergies:</strong> ${pet.allergies || 'None'}</p><p><strong>Medications:</strong> ${pet.medications || 'None'}</p><p><strong>Immunizations:</strong> ${pet.immunizations || 'Unspecified'}</p><p><strong>Collar ID:</strong> ${code ? code.code : 'Not assigned'}</p>`);
-      win.document.write('</body></html>');
-      win.document.close();
-      win.print();
-    });
-    actions.append(editButton, printButton);
+    const viewQrButton = document.createElement('button');
+    viewQrButton.className = 'secondary';
+    viewQrButton.textContent = code ? 'View QR' : 'No QR';
+    if (!code) {
+      viewQrButton.disabled = true;
+      viewQrButton.title = 'Assign a collar QR first';
+      viewQrButton.style.opacity = '0.6';
+      viewQrButton.style.cursor = 'not-allowed';
+    } else {
+      viewQrButton.addEventListener('click', async () => {
+        await openPetQrModal(pet, code);
+      });
+    }
+    actions.append(editButton, viewQrButton);
     card.append(statusBadge, image, title, details, label, health, lostToggleRow, actions);
     petCardList.appendChild(card);
   });
@@ -430,8 +683,10 @@ async function renderAdminScanHistory(recentOnly = false) {
     return;
   }
 
+  const displayHistory = recentOnly ? history.slice(0, 8) : history;
+
   container.innerHTML = '';
-  history.forEach(scan => {
+  displayHistory.forEach(scan => {
     const qr = qrCodes ? qrCodes.find(q => String(q.id) === String(scan.qr_code_id)) : null;
     const pet = pets ? pets.find(p => String(p.qr_code_id) === String(qr ? qr.id : scan.qr_code_id)) : null;
     const div = document.createElement('div');
@@ -1334,34 +1589,85 @@ async function renderFinderResult(rawCode) {
   const qrCodes = await loadData('qr_codes');
   const pets = await loadData('pets');
   const users = await loadData('users');
-  
+  const result = $('finderResult');
+
+  showView('finderScreen');
+  if (!result) return;
+
+  result.className = 'finder-result public-profile-result';
+  result.innerHTML = '';
+
   const qrCode = qrCodes.find((q) => q.code === rawCode);
   if (!qrCode || !qrCode.pet_id) {
-    showMessage('This pet has not been registered yet. Redirecting to the login screen.');
-    showView('loginScreen');
-    setNavigation();
-    const loginEmail = $('loginEmail');
-    const loginPassword = $('loginPassword');
-    if (loginEmail) loginEmail.value = '';
-    if (loginPassword) loginPassword.value = '';
+    result.innerHTML = `
+      <div class="public-profile-shell">
+        <div class="public-profile-brand">PawsQR</div>
+        <div class="public-profile-status-card">
+          <div class="public-profile-status-title">Pet not found</div>
+          <div class="public-profile-status-copy">This collar has not been linked to a pet profile yet.</div>
+        </div>
+      </div>
+    `;
     return;
   }
+
   const pet = pets.find((p) => p.id === qrCode.pet_id);
   const owner = users.find((u) => u.id === pet.owner_id);
-  showView('finderScreen');
-  const result = $('finderResult');
+  const contactHref = owner && owner.phone ? `tel:${owner.phone}` : owner && owner.email ? `mailto:${owner.email}` : '#';
+  const contactLabel = owner && owner.phone ? 'Call Owner' : 'Email Owner';
+  const hasAllergies = pet.allergies && pet.allergies.trim();
+  const hasMedications = pet.medications && pet.medications.trim();
+
   result.innerHTML = `
-    <h3>${pet.name}</h3>
-    <img src="${pet.photo}" alt="${pet.name}" style="width:100%;border-radius:16px;margin-bottom:12px;max-height:260px;object-fit:cover;" />
-    <p><strong>Breed:</strong> ${pet.breed}</p>
-    <p><strong>Age:</strong> ${pet.age}</p>
-    <p><strong>Characteristics:</strong> ${pet.characteristics}</p>
-    <p><strong>Allergies:</strong> ${pet.allergies || 'None'}<br><strong>Medications:</strong> ${pet.medications || 'None'}<br><strong>Immunizations:</strong> ${pet.immunizations || 'Unspecified'}</p>
-    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;">
-      <a class="primary" href="tel:${owner.phone}" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Call Owner</a>
-      <a class="secondary" href="mailto:${owner.email}?subject=Found%20${encodeURIComponent(pet.name)}" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Email Owner</a>
+    <div class="public-profile-shell">
+      <div class="public-profile-brand">PawsQR</div>
+
+      ${pet.is_lost ? `
+        <div class="public-profile-lost-alert" role="alert">
+          <div class="public-profile-lost-title">This pet is reported lost</div>
+          <div class="public-profile-lost-subtext">Please contact the owner immediately — they are waiting for your call.</div>
+        </div>
+      ` : ''}
+
+      <div class="public-profile-photo-wrap">
+        <img class="public-profile-photo" src="${pet.photo || ''}" alt="${pet.name}" />
+      </div>
+
+      <h1 class="public-profile-name">${pet.name}</h1>
+      <p class="public-profile-meta">${pet.breed || 'Unknown breed'} · ${pet.age || 'Age unknown'}</p>
+
+      <a class="public-profile-action" href="${contactHref}">${contactLabel}</a>
+
+      <section class="public-profile-info-card" aria-label="Pet information">
+        <div class="public-profile-info-row">
+          <div class="public-profile-info-label">Breed</div>
+          <div class="public-profile-info-value">${pet.breed || 'Unknown breed'}</div>
+        </div>
+        <div class="public-profile-info-row">
+          <div class="public-profile-info-label">Age</div>
+          <div class="public-profile-info-value">${pet.age || 'Age unknown'}</div>
+        </div>
+        <div class="public-profile-info-row">
+          <div class="public-profile-info-label">Characteristics</div>
+          <div class="public-profile-info-value">${pet.characteristics || 'No characteristics listed.'}</div>
+        </div>
+      </section>
+
+      ${hasAllergies || hasMedications ? `
+        <section class="public-profile-medical-card" aria-label="Medical alerts">
+          <div class="public-profile-medical-header">
+            <span class="public-profile-medical-icon">⚠️</span>
+            <span>Medical Alerts</span>
+          </div>
+          <ul class="public-profile-medical-list">
+            ${hasAllergies ? `<li><strong>Allergies:</strong> ${pet.allergies}</li>` : ''}
+            ${hasMedications ? `<li><strong>Medications:</strong> ${pet.medications}</li>` : ''}
+          </ul>
+        </section>
+      ` : ''}
     </div>
   `;
+
   // Save a scan record to Supabase (Finder lookup)
   try {
     const { error: scanError } = await db.from('scan_history').insert([{
@@ -1369,7 +1675,7 @@ async function renderFinderResult(rawCode) {
       scanned_by: STATE.currentUser ? [STATE.currentUser.first_name, STATE.currentUser.last_name].filter(Boolean).join(' ') : 'Anonymous',
       location: null,
       scanned_at: new Date().toISOString(),
-      user_id: owner.id,
+      user_id: owner ? owner.id : null,
       pet_id: pet.id,
       qr_code_text: qrCode.code,
       action: 'Finder lookup'
@@ -1406,6 +1712,7 @@ async function submitPetForm(event) {
   }
 
   const pets = await loadData('pets');
+  const qrCodes = await loadData('qr_codes');
   const existingPet = editingId ? pets.find((p) => p.id === editingId) : null;
   const { data: freshQr, error: qrError } = await db.from('qr_codes').select('*').eq('id', STATE.currentQrVerification.id).single();
   if (qrError || !freshQr) {
