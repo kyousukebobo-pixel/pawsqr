@@ -99,6 +99,9 @@ async function initializeStorage() {
 }
 
 function showView(viewId) {
+  const finderResultEl = $('finderResult');
+  const savedFinderResult = finderResultEl ? finderResultEl.innerHTML : null;
+
   document.querySelectorAll('.view').forEach((view) => {
     view.classList.remove('active');
     view.classList.add('hidden');
@@ -106,6 +109,10 @@ function showView(viewId) {
   const target = $(viewId);
   target.classList.remove('hidden');
   target.classList.add('active');
+
+  if (viewId === 'finderScreen' && savedFinderResult && finderResultEl) {
+    finderResultEl.innerHTML = savedFinderResult;
+  }
 
   if (viewId === 'finderScreen') {
     document.body.style.background = '#ffffff';
@@ -1594,7 +1601,6 @@ async function renderFinderResult(rawCode) {
 
   const owner = users.find((u) => u.id === pet.owner_id);
 
-  showView('finderScreen');
   const result = $('finderResult');
   result.innerHTML = `
     <div class="public-pet-profile">
@@ -1635,6 +1641,8 @@ async function renderFinderResult(rawCode) {
       ` : ''}
     </div>
   `;
+
+  showView('finderScreen');
 }
 
 async function recordHistory(entry) {
