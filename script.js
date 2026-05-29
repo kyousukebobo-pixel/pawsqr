@@ -1472,28 +1472,36 @@ async function handlePetQrScan(decodedText) {
   if ($('petQrCode')) $('petQrCode').value = scannedCode;
 }
 
-async function handleFinderQrScanned(decodedText, scannerInstance, container) {
-  const normalizedCode = normalizeQrText(decodedText);
-
-  try {
-    await scannerInstance.stop();
-  } catch (error) {
-    console.warn('Error stopping finder scanner:', error);
-  }
-
-  try {
-    scannerInstance.clear();
-  } catch (error) {
-    console.warn('Error clearing finder scanner:', error);
-  }
-
-  STATE.finderScanner = null;
-  if (container) {
-    container.classList.add('hidden');
-  }
-
-  $('finderQrInput').value = normalizedCode;
-  await handleFinderLookup();
+function handleFinderQrScanned(decodedText, scannerInstance, container) {
+  scannerInstance.stop()
+    .then(async () => {
+      scannerInstance.clear().catch(() => {});
+      STATE.finderScanner = null;
+      container.classList.add('hidden');
+      let scannedCode = decodedText.trim();
+      try {
+        if (scannedCode.startsWith('http')) {
+          const url = new URL(scannedCode);
+          const qrParam = url.searchParams.get('qr');
+          if (qrParam) scannedCode = qrParam;
+        }
+      } catch(e) {}
+      await showPublicPetProfile(scannedCode);
+    })
+    .catch(async () => {
+      scannerInstance.clear().catch(() => {});
+      STATE.finderScanner = null;
+      container.classList.add('hidden');
+      let scannedCode = decodedText.trim();
+      try {
+        if (scannedCode.startsWith('http')) {
+          const url = new URL(scannedCode);
+          const qrParam = url.searchParams.get('qr');
+          if (qrParam) scannedCode = qrParam;
+        }
+      } catch(e) {}
+      await showPublicPetProfile(scannedCode);
+    });
 }
 
 async function verifyScannedQr(codeText) {
@@ -2009,6 +2017,9 @@ async function showPublicPetProfile(qrCodeText) {
 
   document.body.innerHTML = `
   <div style="max-width:480px;margin:0 auto;font-family:Inter,sans-serif;background:#f9f9f9;min-height:100vh;">
+    ${STATE.currentUser ? `
+      <div style="padding:12px 16px 0;"><a href="#" style="display:inline-flex;align-items:center;gap:6px;color:#F47B20;font-weight:700;text-decoration:none;" onclick="window.history.back(); return false;">← Back</a></div>
+    ` : ''}
     <div style="background:#F5D97E;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
       <span style="color:#F47B20;font-weight:900;font-size:1.1rem;">PawsQR</span>
       <span style="color:#888;font-size:0.85rem;font-weight:600;">Pet Profile</span>
