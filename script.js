@@ -1478,6 +1478,7 @@ function handleFinderQrScanned(decodedText, scannerInstance, container) {
       scannerInstance.clear().catch(() => {});
       STATE.finderScanner = null;
       container.classList.add('hidden');
+
       let scannedCode = decodedText.trim();
       try {
         if (scannedCode.startsWith('http')) {
@@ -1486,12 +1487,15 @@ function handleFinderQrScanned(decodedText, scannerInstance, container) {
           if (qrParam) scannedCode = qrParam;
         }
       } catch(e) {}
-      await showPublicPetProfile(scannedCode);
+
+      $('finderQrInput').value = scannedCode;
+      await handleFinderLookup();
     })
     .catch(async () => {
       scannerInstance.clear().catch(() => {});
       STATE.finderScanner = null;
       container.classList.add('hidden');
+
       let scannedCode = decodedText.trim();
       try {
         if (scannedCode.startsWith('http')) {
@@ -1500,7 +1504,9 @@ function handleFinderQrScanned(decodedText, scannerInstance, container) {
           if (qrParam) scannedCode = qrParam;
         }
       } catch(e) {}
-      await showPublicPetProfile(scannedCode);
+
+      $('finderQrInput').value = scannedCode;
+      await handleFinderLookup();
     });
 }
 
