@@ -1595,14 +1595,11 @@ async function renderFinderResult(rawCode) {
   try {
     await db.from('scan_history').insert([{
       qr_code_id: qrCode.id,
-      pet_id: pet ? pet.id : null,
-      qr_code_text: rawCode,
       scanned_by: scannedBy,
-      scanned_at: new Date().toISOString(),
-      action: 'Finder lookup'
+      scanned_at: new Date().toISOString()
     }]);
   } catch (error) {
-    console.warn('Failed to record finder lookup history:', error);
+    console.error('Error recording finder lookup history:', error);
   }
 
   if (!pet) {
@@ -2034,14 +2031,15 @@ async function showPublicPetProfile(qrCodeText) {
     .eq('id', pet.owner_id)
     .single();
 
+  const currentUserName = STATE.currentUser
+    ? [STATE.currentUser.first_name, STATE.currentUser.last_name].filter(Boolean).join(' ').trim() || 'Anonymous'
+    : 'Anonymous';
+
   try {
     await db.from('scan_history').insert([{
       qr_code_id: qr.id,
-      scanned_by: 'Anonymous',
-      scanned_at: new Date().toISOString(),
-      pet_id: pet.id,
-      qr_code_text: qr.code,
-      action: 'Public QR lookup'
+      scanned_by: currentUserName,
+      scanned_at: new Date().toISOString()
     }]);
   } catch (error) {
     console.error('Error recording public scan history:', error);
