@@ -1948,7 +1948,6 @@ function attachEvents() {
   }
   $('finderLookUp').addEventListener('click', async () => await handleFinderLookup());
   $('finderScan').addEventListener('click', () => launchQrScanner('finder'));
-  $('finderBack').addEventListener('click', () => showView('dashboardScreen'));
   $('historyBack').addEventListener('click', () => showView('dashboardScreen'));
   // admin controls for recent / all views
   const btnOwnersRecent = $('btnOwnersRecent');
