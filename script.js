@@ -751,7 +751,6 @@ async function renderAdminQrStatus() {
   tableBody.innerHTML = '';
 
   qrCodes.forEach(qr => {
-    // Find assigned pet by matching qr.id to pet.qr_code_id (support string/number types)
     const assignedPet = pets.find(p => String(p.qr_code_id) === String(qr.id)) || null;
     const owner = assignedPet ? users.find(u => String(u.id) === String(assignedPet.owner_id)) : null;
     const scanCount = history.filter(h => String(h.qr_code_id) === String(qr.id)).length;
@@ -759,13 +758,24 @@ async function renderAdminQrStatus() {
     const ownerName = owner ? [owner.first_name, owner.last_name].filter(Boolean).join(' ') : '—';
     const petName = assignedPet ? assignedPet.name : '—';
 
-    const statusColors = { assigned: 'green', available: 'orange', deactivated: 'gray', lost: 'red' };
-    const statusLabels = { assigned: 'Active', available: 'Unassigned', deactivated: 'Deactivated', lost: 'Lost Status' };
+    let displayStatus, statusColor;
+    if (assignedPet) {
+      if (assignedPet.is_lost) {
+        displayStatus = 'Lost';
+        statusColor = 'red';
+      } else {
+        displayStatus = 'Active';
+        statusColor = 'green';
+      }
+    } else {
+      displayStatus = 'Unassigned';
+      statusColor = 'orange';
+    }
 
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${qr.code}</td>
-      <td><span class="status-pill ${statusColors[qr.status] || 'gray'}">${statusLabels[qr.status] || qr.status}</span></td>
+      <td>${displayStatus}</td>
       <td>${petName}</td>
       <td>${ownerName}</td>
       <td>${scanCount}</td>
@@ -1467,6 +1477,16 @@ async function handlePetQrScan(decodedText) {
     qrRecord = newQr;
   }
 
+  try {
+    const { data: assignedPet } = await db.from('pets').select('*').eq('qr_code_id', qrRecord.id).single();
+    if (assignedPet) {
+      await db.from('qr_codes').update({ status: 'assigned' }).eq('id', qrRecord.id);
+      qrRecord = { ...qrRecord, status: 'assigned' };
+    }
+  } catch (error) {
+    // No assigned pet found for this QR; keep existing status
+  }
+
   if (qrRecord.status === 'assigned') {
     $('scannerStatus').textContent = 'This QR code is already assigned to a pet. Please scan a different one.';
     STATE.currentQrVerification = null;
@@ -1713,12 +1733,14 @@ async function submitPetForm(event) {
         pet_id: editingId,
         status: 'assigned',
       });
+      await db.from('qr_codes').update({ status: 'assigned' }).eq('id', qr.id);
       if (existingPet.qr_code_id !== qr.id) {
         const previousIndex = qrCodes.findIndex((code) => code.id === existingPet.qr_code_id);
         if (previousIndex >= 0) {
           await updateData('qr_codes', qrCodes[previousIndex].id, { status: 'available', pet_id: null });
         }
         await updateData('qr_codes', qr.id, { pet_id: existingPet.id, status: 'assigned' });
+        await db.from('qr_codes').update({ status: 'assigned' }).eq('id', qr.id);
       }
       await recordHistory({ action: 'Updated pet profile', user_id: STATE.currentUser.id, pet_id: existingPet.id, qr_code_id: qr.id, qr_code_text: qr.code });
     } else {
@@ -1737,6 +1759,7 @@ async function submitPetForm(event) {
       };
       const savedPet = await saveData('pets', newPet);
       await updateData('qr_codes', qr.id, { pet_id: savedPet.id, status: 'assigned' });
+      await db.from('qr_codes').update({ status: 'assigned' }).eq('id', qr.id);
       await recordHistory({ action: 'Registered pet', user_id: STATE.currentUser.id, pet_id: savedPet.id, qr_code_id: qr.id, qr_code_text: qr.code });
     }
 
