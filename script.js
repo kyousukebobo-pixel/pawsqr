@@ -1417,7 +1417,7 @@ function launchQrScanner(target) {
     }
   };
 
-  cleanupAndStartScanner();
+  setTimeout(cleanupAndStartScanner, 150);
 }
 
 async function handlePetQrScan(decodedText) {
@@ -1472,26 +1472,28 @@ async function handlePetQrScan(decodedText) {
   if ($('petQrCode')) $('petQrCode').value = scannedCode;
 }
 
-function handleFinderQrScanned(decodedText, scannerInstance, container) {
-  // Stop the scanner immediately
-  scannerInstance.stop()
-    .then(() => {
-      scannerInstance.clear().catch(() => {});
-      STATE.finderScanner = null;
-      container.classList.add('hidden');
-      
-      // Set the input and lookup
-      $('finderQrInput').value = decodedText;
-      handleFinderLookup();
-    })
-    .catch(() => {
-      scannerInstance.clear().catch(() => {});
-      STATE.finderScanner = null;
-      container.classList.add('hidden');
-      
-      $('finderQrInput').value = decodedText;
-      handleFinderLookup();
-    });
+async function handleFinderQrScanned(decodedText, scannerInstance, container) {
+  const normalizedCode = normalizeQrText(decodedText);
+
+  try {
+    await scannerInstance.stop();
+  } catch (error) {
+    console.warn('Error stopping finder scanner:', error);
+  }
+
+  try {
+    scannerInstance.clear();
+  } catch (error) {
+    console.warn('Error clearing finder scanner:', error);
+  }
+
+  STATE.finderScanner = null;
+  if (container) {
+    container.classList.add('hidden');
+  }
+
+  $('finderQrInput').value = normalizedCode;
+  await handleFinderLookup();
 }
 
 async function verifyScannedQr(codeText) {
@@ -1527,10 +1529,11 @@ async function verifyScannedQr(codeText) {
   console.log('QR code verification successful, STATE.currentQrVerification set:', STATE.currentQrVerification);
 }
 
-function handleFinderLookup() {
+async function handleFinderLookup() {
   const codeText = $('finderQrInput').value.trim();
+  if (!codeText) return;
   const rawCode = normalizeQrText(codeText);
-  renderFinderResult(rawCode);
+  await renderFinderResult(rawCode);
 }
 
 async function renderFinderResult(rawCode) {
@@ -1546,6 +1549,22 @@ async function renderFinderResult(rawCode) {
   }
 
   const pet = pets.find((p) => String(p.qr_code_id) === String(qrCode.id));
+  const scannedBy = STATE.currentUser
+    ? [STATE.currentUser.first_name, STATE.currentUser.last_name].filter(Boolean).join(' ').trim() || 'Anonymous'
+    : 'Anonymous';
+
+  try {
+    await db.from('scan_history').insert([{
+      qr_code_id: qrCode.id,
+      pet_id: pet ? pet.id : null,
+      qr_code_text: rawCode,
+      scanned_by: scannedBy,
+      scanned_at: new Date().toISOString(),
+      action: 'Finder lookup'
+    }]);
+  } catch (error) {
+    console.warn('Failed to record finder lookup history:', error);
+  }
 
   if (!pet) {
     if (STATE.currentUser) {
@@ -1602,112 +1621,116 @@ async function renderFinderResult(rawCode) {
       ` : ''}
     </div>
   `;
-
-  try {
-    await db.from('scan_history').insert([{
-      qr_code_id: qrCode.id,
-      scanned_by: STATE.currentUser ? [STATE.currentUser.first_name, STATE.currentUser.last_name].filter(Boolean).join(' ') : 'Anonymous',
-      scanned_at: new Date().toISOString(),
-      pet_id: pet.id,
-      qr_code_text: qrCode.code,
-      action: 'Finder lookup'
-    }]);
-  } catch(e) {}
 }
 
 async function recordHistory(entry) {
-  const history = await loadData('scan_history');
   await saveData('scan_history', {
     ...entry,
-    created_at: new Date().toISOString(),
+    scanned_at: new Date().toISOString(),
   });
 }
 
 async function submitPetForm(event) {
   event.preventDefault();
-  const petName = $('petName').value.trim();
-  const petAge = $('petAge').value.trim();
-  const petBreed = $('petBreed').value.trim();
-  const petPhoto = $('petPhoto').value.trim();
-  const petCharacteristics = $('petCharacteristics').value.trim();
-  const petAllergies = $('petAllergies').value.trim();
-  const petMedications = $('petMedications').value.trim();
-  const petImmunizations = $('petImmunizations').value.trim();
-  const editingId = $('editingPetId').value;
-
-  if (!STATE.currentQrVerification && !editingId) {
-    showMessage('You must scan a QR code first.');
-    return;
+  if (submitPetForm._isSubmitting) return;
+  submitPetForm._isSubmitting = true;
+  const saveBtn = event.target.querySelector('button[type="submit"]');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
   }
 
-  const pets = await loadData('pets');
-  const qrCodes = await loadData('qr_codes');
-  const existingPet = editingId ? pets.find((p) => p.id === editingId) : null;
-  const { data: freshQr, error: qrError } = await db.from('qr_codes').select('*').eq('id', STATE.currentQrVerification.id).single();
-  if (qrError || !freshQr) {
-    showMessage('QR code not found. Please scan again.');
-    STATE.currentQrVerification = null;
-    return;
-  }
-  if (freshQr.status === 'assigned' && (!existingPet || existingPet.qr_code_id !== freshQr.id)) {
-    showMessage('This QR code is already assigned to a pet. Please scan a different one.');
-    STATE.currentQrVerification = null;
-    return;
-  }
-  const qr = freshQr;
+  try {
+    const petName = $('petName').value.trim();
+    const petAge = $('petAge').value.trim();
+    const petBreed = $('petBreed').value.trim();
+    const petPhoto = $('petPhoto').value.trim();
+    const petCharacteristics = $('petCharacteristics').value.trim();
+    const petAllergies = $('petAllergies').value.trim();
+    const petMedications = $('petMedications').value.trim();
+    const petImmunizations = $('petImmunizations').value.trim();
+    const editingId = $('editingPetId').value;
 
-  if (editingId) {
-    const existingPet = pets.find((p) => p.id === editingId);
-    if (!existingPet) {
-      showMessage('Pet not found.');
+    if (!STATE.currentQrVerification && !editingId) {
+      showMessage('You must scan a QR code first.');
       return;
     }
-    await updateData('pets', editingId, {
-      name: petName,
-      age: petAge,
-      breed: petBreed,
-      photo: petPhoto,
-      characteristics: petCharacteristics,
-      allergies: petAllergies,
-      medications: petMedications,
-      immunizations: petImmunizations,
-      qr_code_id: qr.id,
-    });
-    await updateData('qr_codes', qr.id, {
-      pet_id: editingId,
-      status: 'assigned',
-    });
-    if (existingPet.qr_code_id !== qr.id) {
-      const previousIndex = qrCodes.findIndex((code) => code.id === existingPet.qr_code_id);
-      if (previousIndex >= 0) {
-        await updateData('qr_codes', qrCodes[previousIndex].id, { status: 'available', pet_id: null });
-      }
-      await updateData('qr_codes', qr.id, { pet_id: existingPet.id, status: 'assigned' });
-    }
-    await recordHistory({ action: 'Updated pet profile', user_id: STATE.currentUser.id, pet_id: existingPet.id, qr_code_text: qr.code });
-  } else {
-    const newPet = {
-      owner_id: STATE.currentUser.id,
-      name: petName,
-      age: petAge,
-      breed: petBreed,
-      photo: petPhoto,
-      characteristics: petCharacteristics,
-      allergies: petAllergies,
-      medications: petMedications,
-      immunizations: petImmunizations,
-      qr_code_id: qr.id,
-      created_at: new Date().toISOString(),
-    };
-    const savedPet = await saveData('pets', newPet);
-    await updateData('qr_codes', qr.id, { pet_id: savedPet.id, status: 'assigned' });
-    await recordHistory({ action: 'Registered pet', user_id: STATE.currentUser.id, pet_id: savedPet.id, qr_code_text: qr.code });
-  }
 
-  $('petForm').reset();
-  STATE.currentQrVerification = null;
-  showView('dashboardScreen');
-  await renderUserDashboard();
+    const pets = await loadData('pets');
+    const qrCodes = await loadData('qr_codes');
+    const existingPet = editingId ? pets.find((p) => p.id === editingId) : null;
+    const { data: freshQr, error: qrError } = await db.from('qr_codes').select('*').eq('id', STATE.currentQrVerification.id).single();
+    if (qrError || !freshQr) {
+      showMessage('QR code not found. Please scan again.');
+      STATE.currentQrVerification = null;
+      return;
+    }
+    if (freshQr.status === 'assigned' && (!existingPet || existingPet.qr_code_id !== freshQr.id)) {
+      showMessage('This QR code is already assigned to a pet. Please scan a different one.');
+      STATE.currentQrVerification = null;
+      return;
+    }
+    const qr = freshQr;
+
+    if (editingId) {
+      const existingPet = pets.find((p) => p.id === editingId);
+      if (!existingPet) {
+        showMessage('Pet not found.');
+        return;
+      }
+      await updateData('pets', editingId, {
+        name: petName,
+        age: petAge,
+        breed: petBreed,
+        photo: petPhoto,
+        characteristics: petCharacteristics,
+        allergies: petAllergies,
+        medications: petMedications,
+        immunizations: petImmunizations,
+        qr_code_id: qr.id,
+      });
+      await updateData('qr_codes', qr.id, {
+        pet_id: editingId,
+        status: 'assigned',
+      });
+      if (existingPet.qr_code_id !== qr.id) {
+        const previousIndex = qrCodes.findIndex((code) => code.id === existingPet.qr_code_id);
+        if (previousIndex >= 0) {
+          await updateData('qr_codes', qrCodes[previousIndex].id, { status: 'available', pet_id: null });
+        }
+        await updateData('qr_codes', qr.id, { pet_id: existingPet.id, status: 'assigned' });
+      }
+      await recordHistory({ action: 'Updated pet profile', user_id: STATE.currentUser.id, pet_id: existingPet.id, qr_code_id: qr.id, qr_code_text: qr.code });
+    } else {
+      const newPet = {
+        owner_id: STATE.currentUser.id,
+        name: petName,
+        age: petAge,
+        breed: petBreed,
+        photo: petPhoto,
+        characteristics: petCharacteristics,
+        allergies: petAllergies,
+        medications: petMedications,
+        immunizations: petImmunizations,
+        qr_code_id: qr.id,
+        created_at: new Date().toISOString(),
+      };
+      const savedPet = await saveData('pets', newPet);
+      await updateData('qr_codes', qr.id, { pet_id: savedPet.id, status: 'assigned' });
+      await recordHistory({ action: 'Registered pet', user_id: STATE.currentUser.id, pet_id: savedPet.id, qr_code_id: qr.id, qr_code_text: qr.code });
+    }
+
+    $('petForm').reset();
+    STATE.currentQrVerification = null;
+    showView('dashboardScreen');
+    await renderUserDashboard();
+  } finally {
+    submitPetForm._isSubmitting = false;
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Pet';
+    }
+  }
 }
 
 async function generateQrCodeBatch(count = 1) {
@@ -1915,7 +1938,7 @@ function attachEvents() {
       reader.readAsDataURL(file);
     });
   }
-  $('finderLookUp').addEventListener('click', handleFinderLookup);
+  $('finderLookUp').addEventListener('click', async () => await handleFinderLookup());
   $('finderScan').addEventListener('click', () => launchQrScanner('finder'));
   $('finderBack').addEventListener('click', () => showView('dashboardScreen'));
   $('historyBack').addEventListener('click', () => showView('dashboardScreen'));
