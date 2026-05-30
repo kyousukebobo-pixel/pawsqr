@@ -724,11 +724,10 @@ async function renderAdminQrStatus() {
     return;
   }
 
-  const counts = { assigned: 0, available: 0, deactivated: 0, lost: 0 };
+  const counts = { assigned: 0, available: 0, lost: 0 };
   qrCodes.forEach(qr => {
     if (qr.status === 'assigned') counts.assigned++;
     else if (qr.status === 'available') counts.available++;
-    else if (qr.status === 'deactivated') counts.deactivated++;
     else if (qr.status === 'lost') counts.lost++;
   });
   const total = qrCodes.length;
@@ -740,13 +739,11 @@ async function renderAdminQrStatus() {
       <div class="progress-bar-container">
         <div class="progress-segment green" style="width:${(counts.assigned/total*100)||0}%"></div>
         <div class="progress-segment orange" style="width:${(counts.available/total*100)||0}%"></div>
-        <div class="progress-segment gray" style="width:${(counts.deactivated/total*100)||0}%"></div>
         <div class="progress-segment red" style="width:${(counts.lost/total*100)||0}%"></div>
       </div>
       <div class="legend">
         <span>🟢 Active/Assigned: ${counts.assigned} (${total ? Math.round(counts.assigned/total*100) : 0}%)</span>
         <span>🟠 Unassigned: ${counts.available} (${total ? Math.round(counts.available/total*100) : 0}%)</span>
-        <span>⚫ Deactivated: ${counts.deactivated} (${total ? Math.round(counts.deactivated/total*100) : 0}%)</span>
         <span>🔴 Lost Status: ${counts.lost} (${total ? Math.round(counts.lost/total*100) : 0}%)</span>
         <strong>Total Collars: ${total}</strong>
       </div>
