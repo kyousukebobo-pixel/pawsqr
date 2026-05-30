@@ -1321,6 +1321,7 @@ async function beginPetRegistration(editPet = null, preVerifiedQr = null) {
     $('petName').value = editPet.name;
     $('petAge').value = editPet.age;
     $('petBreed').value = editPet.breed;
+    $('petAddress').value = editPet.address || '';
     $('petPhoto').value = editPet.photo;
     $('petCharacteristics').value = editPet.characteristics;
     $('petAllergies').value = editPet.allergies;
@@ -1695,6 +1696,7 @@ async function submitPetForm(event) {
     const petName = $('petName').value.trim();
     const petAge = $('petAge').value.trim();
     const petBreed = $('petBreed').value.trim();
+    const petAddress = $('petAddress').value.trim();
     const petPhoto = $('petPhoto').value.trim();
     const petCharacteristics = $('petCharacteristics').value.trim();
     const petAllergies = $('petAllergies').value.trim();
@@ -1733,6 +1735,7 @@ async function submitPetForm(event) {
         name: petName,
         age: petAge,
         breed: petBreed,
+        address: petAddress,
         photo: petPhoto,
         characteristics: petCharacteristics,
         allergies: petAllergies,
@@ -1760,6 +1763,7 @@ async function submitPetForm(event) {
         name: petName,
         age: petAge,
         breed: petBreed,
+        address: petAddress,
         photo: petPhoto,
         characteristics: petCharacteristics,
         allergies: petAllergies,
@@ -2081,6 +2085,7 @@ async function showPublicPetProfile(qrCodeText) {
       <p style="font-size:0.7rem;font-weight:700;color:#aaa;letter-spacing:0.08em;margin:0 0 12px;">PET INFORMATION</p>
       ${pet.breed ? `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;"><span style="color:#aaa;font-size:0.82rem;">BREED</span><span style="font-weight:600;">${pet.breed}</span></div>` : ''}
       ${pet.age ? `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;"><span style="color:#aaa;font-size:0.82rem;">AGE</span><span style="font-weight:600;">${pet.age}</span></div>` : ''}
+      ${pet.address ? `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;"><span style="color:#aaa;font-size:0.82rem;">ADDRESS</span><span style="font-weight:600;text-align:right;max-width:60%;">${pet.address}</span></div>` : ''}
       ${pet.characteristics ? `<div style="display:flex;justify-content:space-between;padding:10px 0;"><span style="color:#aaa;font-size:0.82rem;">CHARACTERISTICS</span><span style="font-weight:600;text-align:right;max-width:60%;">${pet.characteristics}</span></div>` : ''}
     </div>
     ${(pet.allergies || pet.medications || pet.immunizations) ? `<div style="background:#fffbe6;border:1px solid #ffe58f;border-radius:16px;margin:0 16px 12px;padding:16px;"><p style="font-size:0.7rem;font-weight:700;color:#d48806;letter-spacing:0.08em;margin:0 0 10px;">MEDICAL ALERTS</p>${pet.allergies ? `<p style="color:#d48806;font-size:0.88rem;margin:0 0 6px;">• Allergies: ${pet.allergies}</p>` : ''}${pet.medications ? `<p style="color:#d48806;font-size:0.88rem;margin:0 0 6px;">• Medications: ${pet.medications}</p>` : ''}${pet.immunizations ? `<p style="color:#d48806;font-size:0.88rem;margin:0;">• Immunizations: ${pet.immunizations}</p>` : ''}</div>` : ''}
