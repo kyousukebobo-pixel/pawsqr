@@ -126,6 +126,14 @@ function showView(viewId) {
   document.querySelectorAll('.top-nav button').forEach((btn) => {
     btn.classList.remove('active-nav');
   });
+  // Save current view to localStorage for session restoration
+  try {
+    if (STATE.currentUser) {
+      localStorage.setItem('pawsqr_last_view', viewId);
+    }
+  } catch (e) {
+    // ignore storage errors
+  }
 }
 
 function setNavigation() {
@@ -1133,8 +1141,30 @@ async function routeToView() {
     showView('finderScreen');
     return;
   }
-  showView('dashboardScreen');
-  await renderUserDashboard();
+  // Restore last view if available
+  try {
+    const lastView = localStorage.getItem('pawsqr_last_view');
+    const validViews = ['dashboardScreen', 'historyScreen', 'finderScreen', 'petFormScreen', 'adminOwnersScreen', 'adminPetsScreen', 'adminScansScreen', 'adminQrCodesScreen', 'adminQrStatusScreen', 'adminPanelScreen'];
+    if (lastView && validViews.includes(lastView)) {
+      if (lastView === 'dashboardScreen') { showView('dashboardScreen'); await renderUserDashboard(); }
+      else if (lastView === 'historyScreen') { showView('historyScreen'); await showHistoryView(); }
+      else if (lastView === 'finderScreen') { showView('finderScreen'); }
+      else if (lastView === 'petFormScreen') { showView('petFormScreen'); }
+      else if (lastView === 'adminOwnersScreen') { showView('adminOwnersScreen'); await renderAdminOwners(); }
+      else if (lastView === 'adminPetsScreen') { showView('adminPetsScreen'); await renderAdminRegisteredPets(); }
+      else if (lastView === 'adminScansScreen') { await renderAdminScanHistory(); }
+      else if (lastView === 'adminQrCodesScreen') { showView('adminQrCodesScreen'); await renderAdminQrCodes(); }
+      else if (lastView === 'adminQrStatusScreen') { showView('adminQrStatusScreen'); await renderAdminQrStatus(); }
+      else if (lastView === 'adminPanelScreen') { renderAdminPanel(); }
+      else { showView('dashboardScreen'); await renderUserDashboard(); }
+    } else {
+      showView('dashboardScreen');
+      await renderUserDashboard();
+    }
+  } catch (e) {
+    showView('dashboardScreen');
+    await renderUserDashboard();
+  }
 }
 
 async function routeAfterLogin() {
@@ -1238,6 +1268,11 @@ function handleLogout() {
     sessionStorage.removeItem('pawsqr_session');
   } catch (e) {
     console.warn('Unable to clear session:', e);
+  }
+  try {
+    localStorage.removeItem('pawsqr_last_view');
+  } catch (e) {
+    // ignore
   }
   setNavigation();
   toggleLoginState('welcome');
