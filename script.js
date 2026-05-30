@@ -1607,7 +1607,7 @@ async function handleFinderLookup() {
   const codeText = $('finderQrInput').value.trim();
   if (!codeText) return;
   const rawCode = normalizeQrText(codeText);
-  await renderFinderResult(rawCode);
+  await showPublicPetProfile(rawCode);
 }
 
 async function renderFinderResult(rawCode) {
