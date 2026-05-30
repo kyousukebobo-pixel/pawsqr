@@ -2067,9 +2067,7 @@ async function showPublicPetProfile(qrCodeText) {
 
   document.body.innerHTML = `
   <div style="max-width:480px;margin:0 auto;font-family:Inter,sans-serif;background:#f9f9f9;min-height:100vh;">
-    ${STATE.currentUser ? `
-      <div style="padding:12px 16px 0;"><a href="${window.location.origin + window.location.pathname}" style="display:inline-flex;align-items:center;gap:6px;color:#F47B20;font-weight:700;text-decoration:none;">← Back</a></div>
-    ` : ''}
+    <div style="padding:12px 16px 0;"><a href="${window.location.origin + window.location.pathname}" style="display:inline-flex;align-items:center;gap:6px;color:#F47B20;font-weight:700;text-decoration:none;">← ${STATE.currentUser ? 'Back to Dashboard' : 'Login'}</a></div>
     <div style="background:#F5D97E;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
       <span style="color:#F47B20;font-weight:900;font-size:1.1rem;">PawsQR</span>
       <span style="color:#888;font-size:0.85rem;font-weight:600;">Pet Profile</span>
