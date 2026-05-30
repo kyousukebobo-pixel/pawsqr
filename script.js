@@ -1113,55 +1113,38 @@ async function autoLoginFromHash() {
 }
 
 async function routeToView() {
-  // Ensure navigation visibility is correct before routing
   setNavigation();
-  
-  const hash = location.hash.replace('#', '');
-  
+
   if (!STATE.currentUser) {
     showView('loginScreen');
     return;
   }
 
   if (STATE.currentUser.role === 'admin') {
-    renderAdminPanel();
-    return;
-  }
-
-  if (hash === 'register') {
-    beginPetRegistration();
-    return;
-  }
-  if (hash === 'history') {
-    showView('historyScreen');
-    showHistoryView();
-    return;
-  }
-  if (hash === 'finder') {
-    showView('finderScreen');
-    return;
-  }
-  // Restore last view if available
-  try {
     const lastView = localStorage.getItem('pawsqr_last_view');
-    const validViews = ['dashboardScreen', 'historyScreen', 'finderScreen', 'petFormScreen', 'adminOwnersScreen', 'adminPetsScreen', 'adminScansScreen', 'adminQrCodesScreen', 'adminQrStatusScreen', 'adminPanelScreen'];
-    if (lastView && validViews.includes(lastView)) {
-      if (lastView === 'dashboardScreen') { showView('dashboardScreen'); await renderUserDashboard(); }
-      else if (lastView === 'historyScreen') { showView('historyScreen'); await showHistoryView(); }
-      else if (lastView === 'finderScreen') { showView('finderScreen'); }
-      else if (lastView === 'petFormScreen') { showView('petFormScreen'); }
-      else if (lastView === 'adminOwnersScreen') { showView('adminOwnersScreen'); await renderAdminOwners(); }
+    const adminViews = ['adminOwnersScreen', 'adminPetsScreen', 'adminScansScreen', 'adminQrCodesScreen', 'adminQrStatusScreen', 'adminPanelScreen'];
+    if (lastView && adminViews.includes(lastView)) {
+      if (lastView === 'adminOwnersScreen') { showView('adminOwnersScreen'); await renderAdminOwners(); }
       else if (lastView === 'adminPetsScreen') { showView('adminPetsScreen'); await renderAdminRegisteredPets(); }
       else if (lastView === 'adminScansScreen') { await renderAdminScanHistory(); }
       else if (lastView === 'adminQrCodesScreen') { showView('adminQrCodesScreen'); await renderAdminQrCodes(); }
       else if (lastView === 'adminQrStatusScreen') { showView('adminQrStatusScreen'); await renderAdminQrStatus(); }
-      else if (lastView === 'adminPanelScreen') { renderAdminPanel(); }
-      else { showView('dashboardScreen'); await renderUserDashboard(); }
+      else { renderAdminPanel(); }
     } else {
-      showView('dashboardScreen');
-      await renderUserDashboard();
+      renderAdminPanel();
     }
-  } catch (e) {
+    return;
+  }
+
+  const lastView = localStorage.getItem('pawsqr_last_view');
+  const userViews = ['dashboardScreen', 'historyScreen', 'finderScreen', 'petFormScreen'];
+
+  if (lastView && userViews.includes(lastView)) {
+    if (lastView === 'historyScreen') { showView('historyScreen'); await showHistoryView(); }
+    else if (lastView === 'finderScreen') { showView('finderScreen'); }
+    else if (lastView === 'petFormScreen') { showView('dashboardScreen'); await renderUserDashboard(); }
+    else { showView('dashboardScreen'); await renderUserDashboard(); }
+  } else {
     showView('dashboardScreen');
     await renderUserDashboard();
   }
