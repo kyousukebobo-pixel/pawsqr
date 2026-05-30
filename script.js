@@ -551,7 +551,7 @@ async function renderUserDashboard() {
     const title = document.createElement('h4');
     title.textContent = pet.name;
     const details = document.createElement('p');
-    details.innerHTML = `<strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
+    details.innerHTML = `<strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}${pet.address ? `<br><strong>Address:</strong> ${pet.address}` : ''}`;
     const label = document.createElement('small');
     const code = qrCodes.find((qr) => qr.id === pet.qr_code_id);
     label.textContent = `Collar: ${code ? code.code : 'Not assigned'}`;
