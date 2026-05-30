@@ -724,29 +724,28 @@ async function renderAdminQrStatus() {
     return;
   }
 
+  // Compute counts based on pet assignment and pet.is_lost flag
   const counts = { assigned: 0, available: 0, lost: 0 };
   qrCodes.forEach(qr => {
-    if (qr.status === 'assigned') counts.assigned++;
-    else if (qr.status === 'available') counts.available++;
-    else if (qr.status === 'lost') counts.lost++;
+    const assignedPet = pets.find(p => String(p.qr_code_id) === String(qr.id));
+    if (assignedPet && assignedPet.is_lost) {
+      counts.lost++;
+    } else if (assignedPet) {
+      counts.assigned++;
+    } else {
+      counts.available++;
+    }
   });
   const total = qrCodes.length;
 
-  // Update summary card
+  // Update summary card with each status on its own line and Total separate
   const summaryEl = $('qrStatusSummary');
   if (summaryEl) {
     summaryEl.innerHTML = `
-      <div class="progress-bar-container">
-        <div class="progress-segment green" style="width:${(counts.assigned/total*100)||0}%"></div>
-        <div class="progress-segment orange" style="width:${(counts.available/total*100)||0}%"></div>
-        <div class="progress-segment red" style="width:${(counts.lost/total*100)||0}%"></div>
-      </div>
-      <div class="legend">
-        <span>🟢 Active/Assigned: ${counts.assigned} (${total ? Math.round(counts.assigned/total*100) : 0}%)</span>
-        <span>🟠 Unassigned: ${counts.available} (${total ? Math.round(counts.available/total*100) : 0}%)</span>
-        <span>🔴 Lost Status: ${counts.lost} (${total ? Math.round(counts.lost/total*100) : 0}%)</span>
-        <strong>Total Collars: ${total}</strong>
-      </div>
+      <div>🟢 Active/Assigned: ${counts.assigned} (${total ? Math.round(counts.assigned/total*100) : 0}%)</div>
+      <div>🟠 Unassigned: ${counts.available} (${total ? Math.round(counts.available/total*100) : 0}%)</div>
+      <div>🔴 Lost Status: ${counts.lost} (${total ? Math.round(counts.lost/total*100) : 0}%)</div>
+      <div style="margin-top:8px;"><strong>Total Collars: ${total}</strong></div>
     `;
   }
 
