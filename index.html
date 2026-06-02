@@ -149,7 +149,16 @@
             <input type="hidden" id="editingPetId" />
             <label>Pet Name<input type="text" id="petName" required /></label>
             <label>Age<input type="text" id="petAge" placeholder="e.g. 3 years" required /></label>
-            <label>Breed<input type="text" id="petBreed" required /></label>
+            <fieldset class="form-fieldset">
+              <legend>Pet Type</legend>
+              <label><input type="radio" name="petType" value="dog" required /> Dog</label>
+              <label><input type="radio" name="petType" value="cat" required /> Cat</label>
+            </fieldset>
+            <label>Breed
+              <select id="petBreed" required>
+                <option value="">Select pet type first</option>
+              </select>
+            </label>
             <label>Home Address<input type="text" id="petAddress" /></label>
               <label>Pet Photo
                 <input type="file" id="petPhotoFile" accept="image/*" />
@@ -161,7 +170,15 @@
             <label>Identifying Characteristics<textarea id="petCharacteristics" rows="2" required></textarea></label>
             <label>Allergies<textarea id="petAllergies" rows="2"></textarea></label>
             <label>Medications<textarea id="petMedications" rows="2"></textarea></label>
-            <label>Immunization Status<textarea id="petImmunizations" rows="2"></textarea></label>
+            <fieldset id="immunizationCheckboxes" class="form-fieldset">
+              <legend>Immunization Status</legend>
+              <label><input type="checkbox" value="Anti-Rabies" /> Anti-Rabies</label>
+              <label><input type="checkbox" value="Distemper" /> Distemper</label>
+              <label><input type="checkbox" value="Parvovirus" /> Parvovirus</label>
+              <label><input type="checkbox" value="Hepatitis" /> Hepatitis</label>
+              <label><input type="checkbox" value="Leptospirosis" /> Leptospirosis</label>
+              <label><input type="checkbox" value="Bordetella" /> Bordetella</label>
+            </fieldset>
             <div id="qrScanSection">
               <h3>Scan QR collar to verify code</h3>
               <p id="scannerStatus">No QR code scanned yet.</p>

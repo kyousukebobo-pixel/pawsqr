@@ -1203,6 +1203,12 @@ async function registerUser() {
   const phone = document.getElementById('createPhone').value.trim();
   const password = document.getElementById('createPassword').value;
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    alert('Please enter a valid email address.');
+    return;
+  }
+
   const { data, error } = await db.from('users').insert([{
     first_name: firstName,
     middle_name: middleName,
@@ -1321,12 +1327,23 @@ async function beginPetRegistration(editPet = null, preVerifiedQr = null) {
     $('petName').value = editPet.name;
     $('petAge').value = editPet.age;
     $('petBreed').value = editPet.breed;
+    if (editPet.pet_type) {
+      const radio = document.querySelector(`input[name="petType"][value="${editPet.pet_type}"]`);
+      if (radio) {
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change'));
+      }
+      $('petBreed').value = editPet.breed;
+    }
     $('petAddress').value = editPet.address || '';
     $('petPhoto').value = editPet.photo;
     $('petCharacteristics').value = editPet.characteristics;
     $('petAllergies').value = editPet.allergies;
     $('petMedications').value = editPet.medications;
-    $('petImmunizations').value = editPet.immunizations;
+    const savedImmunizations = editPet.immunizations ? editPet.immunizations.split(', ') : [];
+    document.querySelectorAll('#immunizationCheckboxes input').forEach(cb => {
+      cb.checked = savedImmunizations.includes(cb.value);
+    });
     if (editPet.qr_code_id) {
       const qrs = await loadData('qr_codes');
       const qr = qrs.find((code) => code.id === editPet.qr_code_id);
@@ -1696,12 +1713,14 @@ async function submitPetForm(event) {
     const petName = $('petName').value.trim();
     const petAge = $('petAge').value.trim();
     const petBreed = $('petBreed').value.trim();
+    const petType = document.querySelector('input[name="petType"]:checked')?.value || '';
     const petAddress = $('petAddress').value.trim();
     const petPhoto = $('petPhoto').value.trim();
     const petCharacteristics = $('petCharacteristics').value.trim();
     const petAllergies = $('petAllergies').value.trim();
     const petMedications = $('petMedications').value.trim();
-    const petImmunizations = $('petImmunizations').value.trim();
+    const checked = Array.from(document.querySelectorAll('#immunizationCheckboxes input:checked')).map(cb => cb.value);
+    const petImmunizations = checked.join(', ') || 'None';
     const editingId = $('editingPetId').value;
 
     if (!STATE.currentQrVerification && !editingId) {
@@ -1735,6 +1754,7 @@ async function submitPetForm(event) {
         name: petName,
         age: petAge,
         breed: petBreed,
+        pet_type: petType,
         address: petAddress,
         photo: petPhoto,
         characteristics: petCharacteristics,
@@ -1763,6 +1783,7 @@ async function submitPetForm(event) {
         name: petName,
         age: petAge,
         breed: petBreed,
+        pet_type: petType,
         address: petAddress,
         photo: petPhoto,
         characteristics: petCharacteristics,
@@ -1905,6 +1926,28 @@ function attachEvents() {
       toggleBtn.textContent = passwordInput.type === 'password' ? '👁' : '🙈';
     });
   }
+
+  const toggleConfirmBtn = document.getElementById('toggleConfirmPassword');
+  const confirmPasswordInput = document.getElementById('confirmPassword');
+  if (toggleConfirmBtn && confirmPasswordInput) {
+    toggleConfirmBtn.addEventListener('click', () => {
+      confirmPasswordInput.type = confirmPasswordInput.type === 'password' ? 'text' : 'password';
+      toggleConfirmBtn.textContent = confirmPasswordInput.type === 'password' ? '👁' : '🙈';
+    });
+  }
+
+  const dogBreeds = ['Askal','Labrador','Bulldog','Poodle','Beagle','German Shepherd','Golden Retriever','Shih Tzu','Chihuahua','Dachshund','Siberian Husky','Rottweiler','Doberman','Pomeranian','Chow Chow'];
+  const catBreeds = ['Puspin','Persian','Siamese','Maine Coon','Bengal','Ragdoll','British Shorthair','Sphynx','Scottish Fold','Abyssinian','Birman','Burmese','Russian Blue','Turkish Angora'];
+
+  document.querySelectorAll('input[name="petType"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const breeds = radio.value === 'dog' ? dogBreeds : catBreeds;
+      const breedSelect = document.getElementById('petBreed');
+      if (breedSelect) {
+        breedSelect.innerHTML = breeds.map(b => `<option value="${b}">${b}</option>`).join('');
+      }
+    });
+  });
 
   // Login password eye toggle
   const toggleLoginBtn = document.getElementById('toggleLoginPassword');
@@ -2079,6 +2122,7 @@ async function showPublicPetProfile(qrCodeText) {
       <p style="color:#888;margin:0;">${pet.breed} · ${pet.age}</p>
     </div>
     ${ownerPhone ? `<a href="tel:${ownerPhone}" style="display:block;margin:0 16px 12px;background:#F47B20;color:white;text-align:center;padding:16px;border-radius:14px;font-weight:700;font-size:1rem;text-decoration:none;">Call Owner</a>` : ''}
+    ${owner ? `<div style="padding:0 16px 12px;font-size:0.95rem;font-weight:700;color:#333;">Owner: ${[owner.first_name, owner.last_name].filter(Boolean).join(' ')}</div>` : ''}
     <div style="background:white;border-radius:16px;margin:0 16px 12px;padding:16px;">
       <p style="font-size:0.7rem;font-weight:700;color:#aaa;letter-spacing:0.08em;margin:0 0 12px;">PET INFORMATION</p>
       ${pet.breed ? `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;"><span style="color:#aaa;font-size:0.82rem;">BREED</span><span style="font-weight:600;">${pet.breed}</span></div>` : ''}
