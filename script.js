@@ -1257,6 +1257,12 @@ async function registerUser() {
   const phone = document.getElementById('createPhone').value.trim();
   const password = document.getElementById('createPassword').value;
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    alert('Please enter a valid email address.');
+    return;
+  }
+
   const { data, error } = await db.from('users').insert([{
     first_name: firstName,
     middle_name: middleName,
@@ -2020,6 +2026,16 @@ function attachEvents() {
     toggleBtn.addEventListener('click', () => {
       passwordInput.type = passwordInput.type === 'password' ? 'text' : 'password';
       toggleBtn.textContent = passwordInput.type === 'password' ? '👁' : '🙈';
+    });
+  }
+
+  // Confirm password eye icon
+  const toggleConfirmBtn = document.getElementById('toggleConfirmPassword');
+  const confirmPasswordInput = document.getElementById('confirmPassword');
+  if (toggleConfirmBtn && confirmPasswordInput) {
+    toggleConfirmBtn.addEventListener('click', () => {
+      confirmPasswordInput.type = confirmPasswordInput.type === 'password' ? 'text' : 'password';
+      toggleConfirmBtn.textContent = confirmPasswordInput.type === 'password' ? '👁' : '🙈';
     });
   }
 
