@@ -22,6 +22,18 @@ const SUPABASE_URL = 'https://sbkkdtfdhvikhfdbhsbx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNia2tkdGZkaHZpa2hmZGJoc2J4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTk3NDUsImV4cCI6MjA5NTE3NTc0NX0.E-v0T9hbvRMWBOSjXOgHKSYRE3RgPnvcEtkQ9GJC1gA';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// EmailJS configuration (initialized if EmailJS SDK is loaded)
+const EMAILJS_SERVICE_ID = 'service_m2bq1cq';
+const EMAILJS_TEMPLATE_ID = 'o2t65cq';
+const EMAILJS_PUBLIC_KEY = 'lklD_aOveFRq-wSUU';
+try {
+  if (window.emailjs && typeof window.emailjs.init === 'function') {
+    emailjs.init(EMAILJS_PUBLIC_KEY);
+  }
+} catch (e) {
+  console.warn('EmailJS not available at init time:', e);
+}
+
 // Third-party Provider IDs (set these in production)
 // Google OAuth2 Configuration
 // Replace with your actual Google Client ID from Google Cloud Console
@@ -222,6 +234,20 @@ function isLocalHost(origin) {
 
 async function prepareQrBaseUrl() {
   QR_BASE_URL = 'https://kyousukebobo-pixel.github.io/pawsqr';
+}
+
+// Send welcome email via EmailJS
+async function sendWelcomeEmail(firstName, email) {
+  if (!window.emailjs || !email) return;
+  try {
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      to_name: firstName,
+      to_email: email,
+    });
+    console.log('Welcome email sent!');
+  } catch (error) {
+    console.error('Email send failed:', error);
+  }
 }
 
 function normalizeQrText(scannedText) {
@@ -1190,6 +1216,11 @@ async function login(email, password) {
     beginPetRegistration(null, STATE.pendingQrCode);
     STATE.pendingQrCode = null;
     return;
+  }
+  try {
+    await sendWelcomeEmail(firstName, email);
+  } catch (e) {
+    console.warn('Failed to send welcome email:', e);
   }
   await routeAfterLogin();
 }
