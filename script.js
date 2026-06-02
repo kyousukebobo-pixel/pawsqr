@@ -250,6 +250,27 @@ async function sendWelcomeEmail(firstName, email) {
   }
 }
 
+// Send welcome emails to all non-admin users (one-time admin action)
+async function sendWelcomeEmailsToAllUsers() {
+  if (!confirm('Send welcome emails to all registered users?')) return;
+  const users = await loadData('users');
+  const regularUsers = users.filter(u => u.role !== 'admin');
+  let successCount = 0;
+  for (const user of regularUsers) {
+    try {
+      if (!window.emailjs) continue;
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        to_name: user.first_name || 'Pet Owner',
+        to_email: user.email,
+      });
+      successCount++;
+    } catch (e) {
+      console.error('Failed to send to:', user.email, e);
+    }
+  }
+  alert(`Welcome emails sent to ${successCount} users!`);
+}
+
 function normalizeQrText(scannedText) {
   const trimmed = scannedText.trim();
   try {
@@ -2125,6 +2146,8 @@ function attachEvents() {
     const count = parseInt($('batchCount').value, 10) || 1;
     await generateQrCodeBatch(count);
   });
+  const btnSendWelcomeEmails = $('btnSendWelcomeEmails');
+  if (btnSendWelcomeEmails) btnSendWelcomeEmails.addEventListener('click', sendWelcomeEmailsToAllUsers);
 }
 
 async function showPublicPetProfile(qrCodeText) {
