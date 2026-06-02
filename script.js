@@ -1776,6 +1776,43 @@ async function generateQrCodeBatch(count = 1) {
   showMessage(`Successfully generated ${count} new collar QR code(s).`);
 }
 
+async function sendWelcomeEmailsToAll() {
+  const statusEl = $('welcomeEmailStatus');
+  if (statusEl) statusEl.textContent = 'Loading users...';
+  
+  const { data: users, error } = await db.from('users').select('*');
+  if (error || !users || !users.length) {
+    if (statusEl) statusEl.textContent = 'No users found or error loading users.';
+    return;
+  }
+  
+  const nonAdmins = users.filter(u => u.role !== 'admin');
+  if (statusEl) statusEl.textContent = `Sending to ${nonAdmins.length} users...`;
+  
+  let successCount = 0;
+  let failCount = 0;
+  
+  for (const user of nonAdmins) {
+    try {
+      const toName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email;
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        to_name: toName,
+        to_email: user.email,
+        email: user.email
+      });
+      successCount++;
+      if (statusEl) statusEl.textContent = `Sent ${successCount}/${nonAdmins.length}...`;
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (err) {
+      console.error('Failed to send to', user.email, err);
+      failCount++;
+    }
+  }
+  
+  if (statusEl) statusEl.textContent = `Done! ✓ ${successCount} sent, ${failCount} failed.`;
+}
+
 async function showHistoryView() {
   const container = $('historyList');
   if (!container) return;
@@ -1984,6 +2021,11 @@ function attachEvents() {
   $('btnGenerateBatch').addEventListener('click', async () => {
     const count = parseInt($('batchCount').value, 10) || 1;
     await generateQrCodeBatch(count);
+  });
+  const btnSendWelcomeAll = $('btnSendWelcomeAll');
+  if (btnSendWelcomeAll) btnSendWelcomeAll.addEventListener('click', async () => {
+    if (!confirm(`Send welcome emails to all registered users? This may take a moment.`)) return;
+    await sendWelcomeEmailsToAll();
   });
 }
 
