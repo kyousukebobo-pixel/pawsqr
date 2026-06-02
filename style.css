@@ -314,24 +314,25 @@ main {
 }
 
 .back-arrow-btn {
-  position: absolute;
-  top: 90px;
-  left: 30px;
+  position: fixed;
+  top: 20px;
+  left: 20px;
   background: transparent;
   border: none;
   color: white;
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   font-weight: 900;
   cursor: pointer;
-  padding: 10px 15px;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-  z-index: 100;
+  padding: 8px 12px;
+  border-radius: 10px;
+  transition: all 0.18s ease;
+  z-index: 9999;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .back-arrow-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px) scale(1.03);
 }
 
 .login-form-card {
@@ -1247,11 +1248,6 @@ button.facebook {
   z-index: 10;
 }
 
-#forgotPasswordState .back-arrow-btn {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-}
 
 /* Ensure hidden always hides at all screen sizes */
 .hidden {
