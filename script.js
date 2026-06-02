@@ -1389,12 +1389,22 @@ async function beginPetRegistration(editPet = null, preVerifiedQr = null) {
     $('editingPetId').value = editPet.id;
     $('petName').value = editPet.name;
     $('petAge').value = editPet.age;
-    $('petBreed').value = editPet.breed;
+    if (editPet.pet_type) {
+      const radio = document.querySelector(`input[name="petType"][value="${editPet.pet_type}"]`);
+      if (radio) {
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change'));
+      }
+      $('petBreed').value = editPet.breed;
+    }
     $('petPhoto').value = editPet.photo;
     $('petCharacteristics').value = editPet.characteristics;
     $('petAllergies').value = editPet.allergies;
     $('petMedications').value = editPet.medications;
-    $('petImmunizations').value = editPet.immunizations;
+    const savedImmunizations = editPet.immunizations ? editPet.immunizations.split(', ') : [];
+    document.querySelectorAll('#immunizationCheckboxes input').forEach(cb => {
+      cb.checked = savedImmunizations.includes(cb.value);
+    });
     if (editPet.qr_code_id) {
       const qrs = await loadData('qr_codes');
       const qr = qrs.find((code) => code.id === editPet.qr_code_id);
@@ -1666,6 +1676,7 @@ async function renderFinderResult(rawCode) {
       <a class="primary" href="tel:${owner.phone}" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Call Owner</a>
       <a class="secondary" href="mailto:${owner.email}?subject=Found%20${encodeURIComponent(pet.name)}" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Email Owner</a>
     </div>
+    ${owner ? `<p style="margin-top:16px;font-weight:600;">Owner: ${[owner.first_name, owner.last_name].filter(Boolean).join(' ')}</p>` : ''}
   `;
   // Save a scan record to Supabase (Finder lookup)
   try {
@@ -1702,7 +1713,8 @@ async function submitPetForm(event) {
   const petCharacteristics = $('petCharacteristics').value.trim();
   const petAllergies = $('petAllergies').value.trim();
   const petMedications = $('petMedications').value.trim();
-  const petImmunizations = $('petImmunizations').value.trim();
+  const checked = Array.from(document.querySelectorAll('#immunizationCheckboxes input:checked')).map(cb => cb.value);
+  const petImmunizations = checked.join(', ') || 'None';
   const editingId = $('editingPetId').value;
 
   if (!STATE.currentQrVerification) {
@@ -1734,6 +1746,7 @@ async function submitPetForm(event) {
     await updateData('pets', editingId, {
       name: petName,
       age: petAge,
+      pet_type: document.querySelector('input[name="petType"]:checked')?.value || '',
       breed: petBreed,
       photo: petPhoto,
       characteristics: petCharacteristics,
@@ -1755,6 +1768,7 @@ async function submitPetForm(event) {
       owner_id: STATE.currentUser.id,
       name: petName,
       age: petAge,
+      pet_type: document.querySelector('input[name="petType"]:checked')?.value || '',
       breed: petBreed,
       photo: petPhoto,
       characteristics: petCharacteristics,
@@ -2066,6 +2080,18 @@ function attachEvents() {
       update('req-special', /[!@#$%^&*]/.test(val));
     });
   }
+
+  // Pet type and breed selector
+  const dogBreeds = ['Askal','Labrador','Bulldog','Poodle','Beagle','German Shepherd','Golden Retriever','Shih Tzu','Chihuahua','Dachshund','Siberian Husky','Rottweiler','Doberman','Pomeranian','Chow Chow'];
+  const catBreeds = ['Puspin','Persian','Siamese','Maine Coon','Bengal','Ragdoll','British Shorthair','Sphynx','Scottish Fold','Abyssinian','Birman','Burmese','Russian Blue','Turkish Angora'];
+
+  document.querySelectorAll('input[name="petType"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const breeds = radio.value === 'dog' ? dogBreeds : catBreeds;
+      const breedSelect = document.getElementById('petBreed');
+      breedSelect.innerHTML = breeds.map(b => `<option value="${b}">${b}</option>`).join('');
+    });
+  });
 
   $('btnGoogle').addEventListener('click', () => loginSocialUser('Gmail'));
   const btnLogoutUser = $('btnLogoutUser');

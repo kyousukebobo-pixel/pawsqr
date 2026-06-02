@@ -203,7 +203,21 @@
             <input type="hidden" id="editingPetId" />
             <label>Pet Name<input type="text" id="petName" required /></label>
             <label>Age<input type="text" id="petAge" placeholder="e.g. 3 years" required /></label>
-            <label>Breed<input type="text" id="petBreed" required /></label>
+            <label>Pet Type
+              <div style="display: flex; gap: 20px; margin-top: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-weight: 400; text-transform: none;">
+                  <input type="radio" name="petType" value="dog" required /> Dog
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-weight: 400; text-transform: none;">
+                  <input type="radio" name="petType" value="cat" required /> Cat
+                </label>
+              </div>
+            </label>
+            <label>Breed
+              <select id="petBreed" required>
+                <option value="">Select pet type first</option>
+              </select>
+            </label>
               <label>Pet Photo
                 <input type="file" id="petPhotoFile" accept="image/*" />
               </label>
@@ -214,7 +228,27 @@
             <label>Identifying Characteristics<textarea id="petCharacteristics" rows="2" required></textarea></label>
             <label>Allergies<textarea id="petAllergies" rows="2"></textarea></label>
             <label>Medications<textarea id="petMedications" rows="2"></textarea></label>
-            <label>Immunization Status<textarea id="petImmunizations" rows="2"></textarea></label>
+            <label>Immunization Status</label>
+            <div id="immunizationCheckboxes" style="display: grid; gap: 8px; padding: 8px 0;">
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: 400; text-transform: none; color: var(--text);">
+                <input type="checkbox" value="Anti-Rabies" /> Anti-Rabies
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: 400; text-transform: none; color: var(--text);">
+                <input type="checkbox" value="Distemper" /> Distemper
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: 400; text-transform: none; color: var(--text);">
+                <input type="checkbox" value="Parvovirus" /> Parvovirus
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: 400; text-transform: none; color: var(--text);">
+                <input type="checkbox" value="Hepatitis" /> Hepatitis
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: 400; text-transform: none; color: var(--text);">
+                <input type="checkbox" value="Leptospirosis" /> Leptospirosis
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: 400; text-transform: none; color: var(--text);">
+                <input type="checkbox" value="Bordetella" /> Bordetella
+              </label>
+            </div>
             <div id="qrScanSection">
               <h3>Scan QR collar to verify code</h3>
               <p id="scannerStatus">No QR code scanned yet.</p>
