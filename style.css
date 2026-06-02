@@ -610,9 +610,9 @@ button.facebook {
 
 .pet-card img {
   width: 100%;
-  height: 240px;
-  object-fit: cover;
   border-radius: 16px;
+  height: 190px;
+  object-fit: cover;
 }
 
 .pet-card h4,
@@ -951,9 +951,9 @@ button.facebook {
 }
 
 .finder-result {
-  background: #ffffff;
-  border-radius: 24px;
-  padding: 0;
+  background: #FFF0E0;
+  border-radius: 18px;
+  padding: 18px;
   min-height: 180px;
 }
 
@@ -964,194 +964,6 @@ button.facebook {
 .finder-result p,
 .finder-result a {
   color: var(--text);
-}
-
-.public-profile-result {
-  background: #ffffff;
-  border-radius: 24px;
-  box-shadow: 0 12px 32px rgba(180, 80, 0, 0.12);
-}
-
-.public-profile-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  background: #ffffff;
-  border-radius: 24px;
-  padding: 20px 18px 24px;
-}
-
-.public-profile-brand {
-  color: var(--primary);
-  text-align: center;
-  font-size: 1.35rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-}
-
-.public-profile-lost-alert {
-  background: #ffe5e5;
-  border: 1px solid #f2b6b6;
-  border-radius: 18px;
-  padding: 14px 15px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.public-profile-lost-title {
-  color: #b91c1c;
-  font-weight: 800;
-  font-size: 0.98rem;
-}
-
-.public-profile-lost-subtext {
-  color: #a92525;
-  font-size: 0.82rem;
-  line-height: 1.35;
-}
-
-.public-profile-photo-wrap {
-  display: flex;
-  justify-content: center;
-}
-
-.public-profile-photo {
-  width: 128px;
-  height: 128px;
-  border-radius: 999px;
-  object-fit: cover;
-  border: 4px solid #ffffff;
-  box-shadow: 0 12px 28px rgba(180, 80, 0, 0.18);
-}
-
-.public-profile-name {
-  margin: 0;
-  text-align: center;
-  font-size: 2rem;
-  font-weight: 800;
-  color: #1a1a1a;
-}
-
-.public-profile-meta {
-  margin: 0;
-  text-align: center;
-  color: #7d6b5f;
-  font-size: 0.96rem;
-}
-
-.public-profile-action {
-  display: block;
-  width: 100%;
-  background: #F47B20;
-  color: #ffffff;
-  text-decoration: none;
-  border-radius: 999px;
-  padding: 14px 16px;
-  text-align: center;
-  font-weight: 800;
-  box-shadow: 0 10px 24px rgba(244, 123, 32, 0.24);
-}
-
-.public-profile-info-card {
-  background: #ffffff;
-  border-radius: 20px;
-  border: 1px solid #ffe2ca;
-  box-shadow: 0 8px 22px rgba(180, 80, 0, 0.10);
-  display: flex;
-  flex-direction: column;
-}
-
-.public-profile-info-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  border-bottom: 1px solid #f3ddca;
-}
-
-.public-profile-info-row:last-child {
-  border-bottom: none;
-}
-
-.public-profile-info-label {
-  font-size: 0.65rem;
-  line-height: 1;
-  color: #8b6350;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-weight: 800;
-}
-
-.public-profile-info-value {
-  flex: 1;
-  text-align: right;
-  font-size: 0.96rem;
-  font-weight: 800;
-  color: #1a1a1a;
-  line-height: 1.35;
-}
-
-.public-profile-medical-card {
-  background: #fff6dd;
-  border: 1px solid #ffd97d;
-  border-radius: 18px;
-  padding: 14px 15px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.public-profile-medical-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #c7770a;
-  font-size: 0.72rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-}
-
-.public-profile-medical-icon {
-  font-size: 0.95rem;
-}
-
-.public-profile-medical-list {
-  margin: 0;
-  padding-left: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  color: #6b4b17;
-  font-size: 0.95rem;
-}
-
-.public-profile-medical-list li {
-  line-height: 1.35;
-}
-
-.public-profile-status-card {
-  background: #fff2f2;
-  border: 1px solid #f4b6b6;
-  border-radius: 20px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.public-profile-status-title {
-  color: #b61f1f;
-  font-size: 1.05rem;
-  font-weight: 800;
-}
-
-.public-profile-status-copy {
-  color: #a72b2b;
-  font-size: 0.92rem;
-  line-height: 1.35;
 }
 
 .qr-status-summary {
@@ -1407,56 +1219,22 @@ button.facebook {
   color: red;
 }
 
-/* Inline input error messages */
-.input-error {
-  color: #e63946;
+.forgot-link {
+  text-align: center;
+  margin: 10px 0 0 0;
+}
+.forgot-link a {
+  color: #F47B20;
   font-size: 0.9rem;
-  margin-top: 4px;
-  display: block;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px solid #F47B20;
+}
+.forgot-link a:hover {
+  color: #c95f0f;
 }
 
 /* Ensure hidden always hides at all screen sizes */
 .hidden {
   display: none !important;
-}
-
-/* Pet Type radio buttons */
-input[name="petType"] {
-  width: auto;
-  margin-right: 8px;
-}
-
-#immunizationCheckboxes label {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.95rem;
-  color: var(--text);
-  cursor: pointer;
-}
-
-#immunizationCheckboxes input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  margin: 0;
-  cursor: pointer;
-}
-
-/* Pet type radio row fix */
-.pet-type-options {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.pet-type-options label {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.95rem;
-  color: var(--text);
-  cursor: pointer;
 }

@@ -76,12 +76,53 @@
               <label class="form-label">EMAIL<input type="email" id="loginEmail" required /></label>
               <label class="form-label">PASSWORD<input type="password" id="loginPassword" required /></label>
               <button type="submit" class="pill-button yellow-pill bold-uppercase">LOGIN</button>
+              <div class="forgot-link">
+                <a href="#" id="showForgotPassword">Forgot Password?</a>
+              </div>
             </form>
 
             <div class="divider">or continue with</div>
 
             <div class="social-buttons">
               <button id="btnGoogle" class="social gmail">Continue with Google</button>
+            </div>
+
+            <!-- Forgot Password State -->
+            <div id="forgotPasswordState" class="login-state-wrapper form-state hidden">
+              <button id="backToLoginForm" class="back-arrow-btn">← Back</button>
+
+              <div class="login-form-card">
+                <h2 class="form-title">RESET PASSWORD</h2>
+
+                <form id="forgotForm" class="form-grid" onsubmit="return false;">
+                  <label class="form-label">EMAIL<input type="email" id="forgotEmail" required /></label>
+
+                  <label class="form-label">NEW PASSWORD
+                    <div class="password-wrapper">
+                      <input type="password" id="forgotNewPassword" required minlength="8" />
+                      <button type="button" id="toggleForgotNew" class="eye-btn">👁</button>
+                    </div>
+                  </label>
+
+                  <label class="form-label">CONFIRM NEW PASSWORD
+                    <div class="password-wrapper">
+                      <input type="password" id="forgotConfirmPassword" required minlength="8" />
+                      <button type="button" id="toggleForgotConfirm" class="eye-btn">👁</button>
+                    </div>
+                  </label>
+
+                  <ul id="forgotPasswordRequirements" class="password-requirements">
+                    <li id="fp-req-length">✗ Minimum 8 characters</li>
+                    <li id="fp-req-upper">✗ At least one uppercase letter</li>
+                    <li id="fp-req-number">✗ At least one number</li>
+                    <li id="fp-req-special">✗ At least one special character (!@#$%^&*)</li>
+                  </ul>
+
+                  <button id="btnResetPassword" class="primary">Reset Password</button>
+                </form>
+
+                <p style="margin-top:12px;">Remembered it? <a href="#" id="backToLoginLink">Log In</a></p>
+              </div>
             </div>
 
             <p class="create-link-text">New to PawsQR? <a href="#" id="linkCreateAccount">Create Account</a></p>

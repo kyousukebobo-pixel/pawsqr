@@ -1813,6 +1813,44 @@ async function sendWelcomeEmailsToAll() {
   if (statusEl) statusEl.textContent = `Done! ✓ ${successCount} sent, ${failCount} failed.`;
 }
 
+async function resetPassword() {
+  const email = $('forgotEmail') ? $('forgotEmail').value.trim() : '';
+  const newPassword = $('forgotNewPassword') ? $('forgotNewPassword').value : '';
+  const confirmPassword = $('forgotConfirmPassword') ? $('forgotConfirmPassword').value : '';
+
+  if (!email) { alert('Please enter your email.'); return; }
+  if (newPassword !== confirmPassword) { alert('Passwords do not match.'); return; }
+  if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[!@#$%^&*]/.test(newPassword)) {
+    alert('Password does not meet requirements.');
+    return;
+  }
+
+  try {
+    const { data: user, error } = await db.from('users').select('*').eq('email', email).single();
+    if (error || !user) {
+      alert('No account found for that email.');
+      return;
+    }
+
+    const { data, error: updateError } = await db.from('users').update({ password: newPassword }).eq('id', user.id).select().single();
+    if (updateError) {
+      console.error('Error updating password:', updateError);
+      alert('Failed to reset password. Please try again later.');
+      return;
+    }
+
+    // Reset form and return to login
+    const forgotForm = $('forgotForm');
+    if (forgotForm) forgotForm.reset();
+    alert('Password reset successful. Please log in with your new password.');
+    toggleLoginState('form');
+    showView('loginScreen');
+  } catch (e) {
+    console.error('Unexpected error resetting password:', e);
+    alert('An unexpected error occurred. Please try again later.');
+  }
+}
+
 async function showHistoryView() {
   const container = $('historyList');
   if (!container) return;
@@ -1856,14 +1894,15 @@ async function showHistoryView() {
 function toggleLoginState(state) {
   const welcomeState = $('loginWelcomeState');
   const formState = $('loginFormState');
-  
-  if (state === 'welcome') {
-    if (welcomeState) welcomeState.classList.remove('hidden');
-    if (formState) formState.classList.add('hidden');
-  } else if (state === 'form') {
-    if (welcomeState) welcomeState.classList.add('hidden');
-    if (formState) formState.classList.remove('hidden');
-  }
+  const forgotState = $('forgotPasswordState');
+
+  if (welcomeState) welcomeState.classList.add('hidden');
+  if (formState) formState.classList.add('hidden');
+  if (forgotState) forgotState.classList.add('hidden');
+
+  if (state === 'welcome' && welcomeState) welcomeState.classList.remove('hidden');
+  else if (state === 'form' && formState) formState.classList.remove('hidden');
+  else if (state === 'forgot' && forgotState) forgotState.classList.remove('hidden');
 }
 
 function attachEvents() {
@@ -2027,6 +2066,48 @@ function attachEvents() {
     if (!confirm(`Send welcome emails to all registered users? This may take a moment.`)) return;
     await sendWelcomeEmailsToAll();
   });
+
+  // Forgot password UI events
+  const showForgotPassword = $('showForgotPassword');
+  const backToLoginForm = $('backToLoginForm');
+  const backToLoginLink = $('backToLoginLink');
+  const btnResetPassword = $('btnResetPassword');
+  const toggleForgotNew = $('toggleForgotNew');
+  const toggleForgotConfirm = $('toggleForgotConfirm');
+
+  if (showForgotPassword) showForgotPassword.addEventListener('click', (e) => { e.preventDefault(); toggleLoginState('forgot'); });
+  if (backToLoginForm) backToLoginForm.addEventListener('click', () => toggleLoginState('form'));
+  if (backToLoginLink) backToLoginLink.addEventListener('click', (e) => { e.preventDefault(); toggleLoginState('form'); });
+  if (btnResetPassword) btnResetPassword.addEventListener('click', resetPassword);
+  if (toggleForgotNew) toggleForgotNew.addEventListener('click', () => {
+    const input = $('forgotNewPassword');
+    if (!input) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
+    toggleForgotNew.textContent = input.type === 'password' ? '👁' : '🙈';
+  });
+  if (toggleForgotConfirm) toggleForgotConfirm.addEventListener('click', () => {
+    const input = $('forgotConfirmPassword');
+    if (!input) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
+    toggleForgotConfirm.textContent = input.type === 'password' ? '👁' : '🙈';
+  });
+
+  const fpPw = $('forgotNewPassword');
+  if (fpPw) {
+    fpPw.addEventListener('input', () => {
+      const val = fpPw.value;
+      const update = (id, test) => {
+        const el = $(id);
+        if (!el) return;
+        el.style.color = test ? 'green' : 'red';
+        el.textContent = (test ? '✓' : '✗') + el.textContent.slice(1);
+      };
+      update('fp-req-length', val.length >= 8);
+      update('fp-req-upper', /[A-Z]/.test(val));
+      update('fp-req-number', /[0-9]/.test(val));
+      update('fp-req-special', /[!@#$%^&*]/.test(val));
+    });
+  }
 }
 
 async function init() {
