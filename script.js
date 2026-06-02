@@ -1238,11 +1238,6 @@ async function login(email, password) {
     STATE.pendingQrCode = null;
     return;
   }
-  try {
-    await sendWelcomeEmail(firstName, email);
-  } catch (e) {
-    console.warn('Failed to send welcome email:', e);
-  }
   await routeAfterLogin();
 }
 
@@ -1291,6 +1286,11 @@ async function registerUser() {
     beginPetRegistration(null, STATE.pendingQrCode);
     STATE.pendingQrCode = null;
     return;
+  }
+  try {
+    await sendWelcomeEmail(firstName, email);
+  } catch (e) {
+    console.warn('Failed to send welcome email:', e);
   }
   await routeAfterLogin();
 }
