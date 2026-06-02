@@ -73,7 +73,12 @@
 
             <form id="loginForm" class="form-grid">
               <label class="form-label">EMAIL<input type="email" id="loginEmail" required /></label>
-              <label class="form-label">PASSWORD<input type="password" id="loginPassword" required /></label>
+              <label class="form-label">PASSWORD
+                <div class="password-wrapper">
+                  <input type="password" id="loginPassword" required />
+                  <button type="button" id="toggleLoginPassword" class="eye-btn">👁</button>
+                </div>
+              </label>
               <button type="submit" class="pill-button yellow-pill bold-uppercase">LOGIN</button>
             </form>
 
