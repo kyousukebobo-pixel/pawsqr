@@ -151,8 +151,10 @@
             <label>Age<input type="text" id="petAge" placeholder="e.g. 3 years" required /></label>
             <fieldset class="form-fieldset">
               <legend>Pet Type</legend>
-              <label><input type="radio" name="petType" value="dog" required /> Dog</label>
-              <label><input type="radio" name="petType" value="cat" required /> Cat</label>
+              <div class="pet-type-options">
+                <label><input type="radio" name="petType" value="dog" required /> Dog</label>
+                <label><input type="radio" name="petType" value="cat" required /> Cat</label>
+              </div>
             </fieldset>
             <label>Breed
               <select id="petBreed" required>
