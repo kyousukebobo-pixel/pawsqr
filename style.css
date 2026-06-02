@@ -1407,6 +1407,14 @@ button.facebook {
   color: red;
 }
 
+/* Inline input error messages */
+.input-error {
+  color: #e63946;
+  font-size: 0.9rem;
+  margin-top: 4px;
+  display: block;
+}
+
 /* Ensure hidden always hides at all screen sizes */
 .hidden {
   display: none !important;

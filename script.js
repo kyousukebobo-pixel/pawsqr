@@ -1204,8 +1204,14 @@ async function registerUser() {
   const password = document.getElementById('createPassword').value;
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailEl = document.getElementById('createEmail');
+  const emailErrorEl = document.getElementById('createEmailError');
   if (!emailRegex.test(email)) {
-    alert('Please enter a valid email address.');
+    if (emailErrorEl) emailErrorEl.textContent = 'Please enter a valid email address.';
+    if (emailEl) {
+      emailEl.style.borderColor = 'red';
+      emailEl.focus();
+    }
     return;
   }
 
@@ -1916,6 +1922,35 @@ function attachEvents() {
     }
     await registerUser();
   });
+
+  // Real-time and blur validation for create email
+  const createEmailInput = document.getElementById('createEmail');
+  if (createEmailInput) {
+    createEmailInput.addEventListener('input', () => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const isValid = emailRegex.test(createEmailInput.value.trim());
+      createEmailInput.style.borderColor = createEmailInput.value.trim() === '' ? '' : (isValid ? 'green' : 'red');
+      const errEl = document.getElementById('createEmailError');
+      if (errEl && isValid) errEl.textContent = '';
+    });
+
+    createEmailInput.addEventListener('blur', () => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const val = createEmailInput.value.trim();
+      if (val && !emailRegex.test(val)) {
+        createEmailInput.style.borderColor = 'red';
+        createEmailInput.style.outline = 'none';
+        createEmailInput.setCustomValidity('Please enter a valid email address.');
+        const errEl = document.getElementById('createEmailError');
+        if (errEl) errEl.textContent = 'Please enter a valid email address.';
+      } else {
+        createEmailInput.style.borderColor = val ? 'green' : '';
+        createEmailInput.setCustomValidity('');
+        const errEl = document.getElementById('createEmailError');
+        if (errEl) errEl.textContent = '';
+      }
+    });
+  }
 
   // Fix 1: Eye icon toggle for password visibility
   const toggleBtn = document.getElementById('togglePassword');

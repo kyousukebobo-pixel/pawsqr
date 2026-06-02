@@ -101,7 +101,10 @@
             <label>Last Name<input type="text" id="createLastName" required /></label>
             <label>Middle Name<input type="text" id="createMiddleName" /></label>
             <label>Suffix<input type="text" id="createSuffix" placeholder="e.g. Jr., Sr., III (optional)" /></label>
-            <label>Email<input type="email" id="createEmail" required /></label>
+            <label>Email
+              <input type="email" id="createEmail" required />
+              <span id="createEmailError" class="input-error" aria-live="polite"></span>
+            </label>
             <label>Phone Number<input type="tel" id="createPhone" required /></label>
             <label>Password
               <div class="password-wrapper">
