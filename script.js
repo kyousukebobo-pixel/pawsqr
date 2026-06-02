@@ -7,6 +7,9 @@ const STATE = {
   loginScanner: null,
 };
 
+let forgotPasswordVerificationCode = null;
+let forgotPasswordVerifiedEmail = null;
+
 const MASTER_ADMIN = {
   first_name: 'Master',
   last_name: 'Admin',
@@ -32,6 +35,7 @@ const GOOGLE_CLIENT_ID = '540931981374-205a6qbbrte6lhulq32g5gcqt1adop3c.apps.goo
 const EMAILJS_USER_ID = 'lklD_aOveFRq-wSUU';
 const EMAILJS_SERVICE_ID = 'service_m2bq1cq';
 const EMAILJS_TEMPLATE_ID = 'template_oogzqdb';
+const EMAILJS_VERIFICATION_TEMPLATE_ID = 'template_0xzfwh3';
 
 function initEmailJs() {
   try {
@@ -1814,11 +1818,10 @@ async function sendWelcomeEmailsToAll() {
 }
 
 async function resetPassword() {
-  const email = $('forgotEmail') ? $('forgotEmail').value.trim() : '';
+  if (!forgotPasswordVerifiedEmail) { alert('Please verify your email first.'); return; }
   const newPassword = $('forgotNewPassword') ? $('forgotNewPassword').value : '';
   const confirmPassword = $('forgotConfirmPassword') ? $('forgotConfirmPassword').value : '';
 
-  if (!email) { alert('Please enter your email.'); return; }
   if (newPassword !== confirmPassword) { alert('Passwords do not match.'); return; }
   if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[!@#$%^&*]/.test(newPassword)) {
     alert('Password does not meet requirements.');
@@ -1826,7 +1829,7 @@ async function resetPassword() {
   }
 
   try {
-    const { data: user, error } = await db.from('users').select('*').eq('email', email).single();
+    const { data: user, error } = await db.from('users').select('*').eq('email', forgotPasswordVerifiedEmail).single();
     if (error || !user) {
       alert('No account found for that email.');
       return;
@@ -1842,6 +1845,8 @@ async function resetPassword() {
     // Reset form and return to login
     const forgotForm = $('forgotForm');
     if (forgotForm) forgotForm.reset();
+    forgotPasswordVerifiedEmail = null;
+    forgotPasswordVerificationCode = null;
     alert('Password reset successful. Please log in with your new password.');
     toggleLoginState('form');
     showView('loginScreen');
@@ -1849,6 +1854,68 @@ async function resetPassword() {
     console.error('Unexpected error resetting password:', e);
     alert('An unexpected error occurred. Please try again later.');
   }
+}
+
+async function sendVerificationCode() {
+  const email = $('forgotEmail') ? $('forgotEmail').value.trim() : '';
+  if (!email) { alert('Please enter your registered email.'); return; }
+
+  try {
+    const { data: user, error } = await db.from('users').select('id,email').eq('email', email).single();
+    if (error || !user) { alert('No account found for that email.'); return; }
+
+    // generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    forgotPasswordVerificationCode = code;
+
+    // send via EmailJS REST endpoint (public key not required for service/template sends)
+    const payload = {
+      service_id: EMAILJS_SERVICE_ID,
+      template_id: EMAILJS_VERIFICATION_TEMPLATE_ID,
+      user_id: EMAILJS_USER_ID,
+      template_params: {
+        to_email: email,
+        verification_code: code
+      }
+    };
+
+    const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      console.error('EmailJS send failed', await res.text());
+      alert('Failed to send verification email. Please try again later.');
+      return;
+    }
+
+    // move to step 2
+    const step1 = $('forgotStep1');
+    const step2 = $('forgotStep2');
+    if (step1) step1.classList.add('hidden');
+    if (step2) step2.classList.remove('hidden');
+    alert('Verification code sent. Check your email.');
+  } catch (e) {
+    console.error('Error sending verification code', e);
+    alert('Unexpected error. Please try again later.');
+  }
+}
+
+function verifyCode() {
+  const entered = $('forgotVerificationCode') ? $('forgotVerificationCode').value.trim() : '';
+  if (!entered) { alert('Please enter the verification code.'); return; }
+  if (!forgotPasswordVerificationCode) { alert('No code sent. Please request a verification code.'); return; }
+  if (entered !== forgotPasswordVerificationCode) { alert('Invalid verification code.'); return; }
+
+  // code verified — lock in the email and proceed to reset
+  forgotPasswordVerifiedEmail = $('forgotEmail') ? $('forgotEmail').value.trim() : null;
+  forgotPasswordVerificationCode = null;
+  const step2 = $('forgotStep2');
+  const step3 = $('forgotStep3');
+  if (step2) step2.classList.add('hidden');
+  if (step3) step3.classList.remove('hidden');
 }
 
 async function showHistoryView() {
@@ -2071,6 +2138,9 @@ function attachEvents() {
   const showForgotPassword = $('showForgotPassword');
   const backToLoginForm = $('backToLoginForm');
   const backToLoginLink = $('backToLoginLink');
+  const btnSendVerificationCode = $('btnSendVerificationCode');
+  const btnVerifyCode = $('btnVerifyCode');
+  const resendCode = $('resendCode');
   const btnResetPassword = $('btnResetPassword');
   const toggleForgotNew = $('toggleForgotNew');
   const toggleForgotConfirm = $('toggleForgotConfirm');
@@ -2078,6 +2148,9 @@ function attachEvents() {
   if (showForgotPassword) showForgotPassword.addEventListener('click', (e) => { e.preventDefault(); toggleLoginState('forgot'); });
   if (backToLoginForm) backToLoginForm.addEventListener('click', () => toggleLoginState('form'));
   if (backToLoginLink) backToLoginLink.addEventListener('click', (e) => { e.preventDefault(); toggleLoginState('form'); });
+  if (btnSendVerificationCode) btnSendVerificationCode.addEventListener('click', sendVerificationCode);
+  if (btnVerifyCode) btnVerifyCode.addEventListener('click', (e) => { e.preventDefault(); verifyCode(); });
+  if (resendCode) resendCode.addEventListener('click', (e) => { e.preventDefault(); sendVerificationCode(); });
   if (btnResetPassword) btnResetPassword.addEventListener('click', resetPassword);
   if (toggleForgotNew) toggleForgotNew.addEventListener('click', () => {
     const input = $('forgotNewPassword');

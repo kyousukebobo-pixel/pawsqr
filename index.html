@@ -68,37 +68,48 @@
         <div id="forgotPasswordState" class="login-state-wrapper form-state hidden">
           <button id="backToLoginForm" class="back-arrow-btn">← Back</button>
 
-          <div class="login-form-card">
+          <div id="forgotStep1" class="login-form-card">
+            <h2 class="form-title">FORGOT PASSWORD</h2>
+            <form class="form-grid" onsubmit="return false;">
+              <label class="form-label">REGISTERED EMAIL<input type="email" id="forgotEmail" required /></label>
+              <button id="btnSendVerificationCode" class="primary">Send Verification Code</button>
+            </form>
+            <p style="margin-top:12px;">Remembered it? <a href="#" id="backToLoginLink">Log In</a></p>
+          </div>
+
+          <div id="forgotStep2" class="login-form-card hidden">
+            <h2 class="form-title">ENTER CODE</h2>
+            <p>We sent a 6-digit code to your email.</p>
+            <form class="form-grid" onsubmit="return false;">
+              <label class="form-label">VERIFICATION CODE<input type="text" id="forgotVerificationCode" maxlength="6" /></label>
+              <button id="btnVerifyCode" class="primary">Verify Code</button>
+            </form>
+            <p><a href="#" id="resendCode">Resend Code</a></p>
+          </div>
+
+          <div id="forgotStep3" class="login-form-card hidden">
             <h2 class="form-title">RESET PASSWORD</h2>
-
             <form id="forgotForm" class="form-grid" onsubmit="return false;">
-              <label class="form-label">EMAIL<input type="email" id="forgotEmail" required /></label>
-
               <label class="form-label">NEW PASSWORD
                 <div class="password-wrapper">
                   <input type="password" id="forgotNewPassword" required minlength="8" />
                   <button type="button" id="toggleForgotNew" class="eye-btn">👁</button>
                 </div>
               </label>
-
               <label class="form-label">CONFIRM NEW PASSWORD
                 <div class="password-wrapper">
                   <input type="password" id="forgotConfirmPassword" required minlength="8" />
                   <button type="button" id="toggleForgotConfirm" class="eye-btn">👁</button>
                 </div>
               </label>
-
               <ul id="forgotPasswordRequirements" class="password-requirements">
                 <li id="fp-req-length">✗ Minimum 8 characters</li>
                 <li id="fp-req-upper">✗ At least one uppercase letter</li>
                 <li id="fp-req-number">✗ At least one number</li>
                 <li id="fp-req-special">✗ At least one special character (!@#$%^&*)</li>
               </ul>
-
               <button id="btnResetPassword" class="primary">Reset Password</button>
             </form>
-
-            <p style="margin-top:12px;">Remembered it? <a href="#" id="backToLoginLink">Log In</a></p>
           </div>
         </div>
 
