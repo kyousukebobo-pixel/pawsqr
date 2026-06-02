@@ -9,7 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.7/html5-qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+  <script src="https://cdn.emailjs.com/sdk/3.2.0/email.min.js"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -74,12 +74,7 @@
 
             <form id="loginForm" class="form-grid">
               <label class="form-label">EMAIL<input type="email" id="loginEmail" required /></label>
-              <label class="form-label">PASSWORD
-                <div class="password-wrapper">
-                  <input type="password" id="loginPassword" required />
-                  <button type="button" id="toggleLoginPassword" class="eye-btn">👁</button>
-                </div>
-              </label>
+              <label class="form-label">PASSWORD<input type="password" id="loginPassword" required /></label>
               <button type="submit" class="pill-button yellow-pill bold-uppercase">LOGIN</button>
             </form>
 
@@ -102,10 +97,7 @@
             <label>Last Name<input type="text" id="createLastName" required /></label>
             <label>Middle Name<input type="text" id="createMiddleName" /></label>
             <label>Suffix<input type="text" id="createSuffix" placeholder="e.g. Jr., Sr., III (optional)" /></label>
-            <label>Email
-              <input type="email" id="createEmail" required />
-              <span id="createEmailError" class="input-error" aria-live="polite"></span>
-            </label>
+            <label>Email<input type="email" id="createEmail" required /></label>
             <label>Phone Number<input type="tel" id="createPhone" required /></label>
             <label>Password
               <div class="password-wrapper">
@@ -140,7 +132,7 @@
           <button id="btnAddPet" class="primary">Register New Pet</button>
         </div>
         <div class="dashboard-grid">
-          <div class="panel" style="display:none">
+          <div class="panel">
             <h3>My QR Collar Codes</h3>
             <div id="userQrList" class="qr-grid"></div>
           </div>
@@ -158,19 +150,7 @@
             <input type="hidden" id="editingPetId" />
             <label>Pet Name<input type="text" id="petName" required /></label>
             <label>Age<input type="text" id="petAge" placeholder="e.g. 3 years" required /></label>
-            <fieldset class="form-fieldset">
-              <legend>Pet Type</legend>
-              <div class="pet-type-options">
-                <label><input type="radio" name="petType" value="dog" required /> Dog</label>
-                <label><input type="radio" name="petType" value="cat" required /> Cat</label>
-              </div>
-            </fieldset>
-            <label>Breed
-              <select id="petBreed" required>
-                <option value="">Select pet type first</option>
-              </select>
-            </label>
-            <label>Home Address<input type="text" id="petAddress" /></label>
+            <label>Breed<input type="text" id="petBreed" required /></label>
               <label>Pet Photo
                 <input type="file" id="petPhotoFile" accept="image/*" />
               </label>
@@ -181,15 +161,7 @@
             <label>Identifying Characteristics<textarea id="petCharacteristics" rows="2" required></textarea></label>
             <label>Allergies<textarea id="petAllergies" rows="2"></textarea></label>
             <label>Medications<textarea id="petMedications" rows="2"></textarea></label>
-            <fieldset id="immunizationCheckboxes" class="form-fieldset">
-              <legend>Immunization Status</legend>
-              <label><input type="checkbox" value="Anti-Rabies" /> Anti-Rabies</label>
-              <label><input type="checkbox" value="Distemper" /> Distemper</label>
-              <label><input type="checkbox" value="Parvovirus" /> Parvovirus</label>
-              <label><input type="checkbox" value="Hepatitis" /> Hepatitis</label>
-              <label><input type="checkbox" value="Leptospirosis" /> Leptospirosis</label>
-              <label><input type="checkbox" value="Bordetella" /> Bordetella</label>
-            </fieldset>
+            <label>Immunization Status<textarea id="petImmunizations" rows="2"></textarea></label>
             <div id="qrScanSection">
               <h3>Scan QR collar to verify code</h3>
               <p id="scannerStatus">No QR code scanned yet.</p>
@@ -224,6 +196,7 @@
           </div>
           <div id="finderScannerContainer" class="scanner-container hidden"></div>
           <div id="finderResult" class="finder-result"></div>
+          <button id="finderBack" class="secondary">Back</button>
         </div>
       </section>
 
@@ -236,7 +209,6 @@
               <input type="number" id="batchCount" min="1" value="1" />
             </label>
             <button id="btnGenerateBatch" class="primary">Generate New Collar QR</button>
-            <button id="btnSendWelcomeEmails" class="secondary">Send Welcome Emails to All Users</button>
           </div>
         </div>
       </section>

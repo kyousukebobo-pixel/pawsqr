@@ -22,23 +22,32 @@ const SUPABASE_URL = 'https://sbkkdtfdhvikhfdbhsbx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNia2tkdGZkaHZpa2hmZGJoc2J4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTk3NDUsImV4cCI6MjA5NTE3NTc0NX0.E-v0T9hbvRMWBOSjXOgHKSYRE3RgPnvcEtkQ9GJC1gA';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// EmailJS configuration (initialized if EmailJS SDK is loaded)
-const EMAILJS_SERVICE_ID = 'service_m2bq1cq';
-const EMAILJS_TEMPLATE_ID = 'o2t65cq';
-const EMAILJS_PUBLIC_KEY = 'lklD_aOveFRq-wSUU';
-try {
-  if (window.emailjs && typeof window.emailjs.init === 'function') {
-    emailjs.init(EMAILJS_PUBLIC_KEY);
-  }
-} catch (e) {
-  console.warn('EmailJS not available at init time:', e);
-}
-
 // Third-party Provider IDs (set these in production)
 // Google OAuth2 Configuration
 // Replace with your actual Google Client ID from Google Cloud Console
 const GOOGLE_CLIENT_ID = '540931981374-205a6qbbrte6lhulq32g5gcqt1adop3c.apps.googleusercontent.com';
 // NOTE: For production, store CLIENT_ID securely and use backend validation of tokens
+
+// EmailJS Configuration
+const EMAILJS_USER_ID = 'lklD_aOveFRq-wSUU';
+const EMAILJS_SERVICE_ID = 'service_m2bq1cq';
+const EMAILJS_TEMPLATE_ID = 'template_oogzqdb';
+
+function initEmailJs() {
+  try {
+    if (!window.emailjs) {
+      console.warn('EmailJS SDK not loaded. Email notifications disabled.');
+      return;
+    }
+    if (!EMAILJS_USER_ID || EMAILJS_USER_ID.includes('YOUR_')) {
+      console.warn('EMAILJS_USER_ID not configured. Set constants in script.js to enable sending.');
+      return;
+    }
+    emailjs.init(EMAILJS_USER_ID);
+  } catch (e) {
+    console.error('Error initializing EmailJS:', e);
+  }
+}
 
 let QR_BASE_URL = '';
 let petQrModal = null;
@@ -53,7 +62,8 @@ async function loadData(table) {
   try {
     const { data, error } = await db.from(table).select('*');
     if (error) {
-      console.error(`Error loading ${table}:`, error);
+  initGoogleSignIn();
+  initEmailJs();
       return [];
     }
     return data || [];
@@ -111,9 +121,6 @@ async function initializeStorage() {
 }
 
 function showView(viewId) {
-  const finderResultEl = $('finderResult');
-  const savedFinderResult = finderResultEl ? finderResultEl.innerHTML : null;
-
   document.querySelectorAll('.view').forEach((view) => {
     view.classList.remove('active');
     view.classList.add('hidden');
@@ -121,31 +128,11 @@ function showView(viewId) {
   const target = $(viewId);
   target.classList.remove('hidden');
   target.classList.add('active');
-
-  if (viewId === 'finderScreen' && savedFinderResult && finderResultEl) {
-    finderResultEl.innerHTML = savedFinderResult;
-  }
-
-  if (viewId === 'finderScreen') {
-    document.body.style.background = '#ffffff';
-    document.body.style.backgroundColor = '#ffffff';
-  } else {
-    document.body.style.background = '#F47B20';
-    document.body.style.backgroundColor = '#F47B20';
-  }
   
   // Reset all nav button highlights
   document.querySelectorAll('.top-nav button').forEach((btn) => {
     btn.classList.remove('active-nav');
   });
-  // Save current view to localStorage for session restoration
-  try {
-    if (STATE.currentUser) {
-      localStorage.setItem('pawsqr_last_view', viewId);
-    }
-  } catch (e) {
-    // ignore storage errors
-  }
 }
 
 function setNavigation() {
@@ -202,8 +189,8 @@ function getQrPayload(rawCode) {
   if (!QR_BASE_URL) {
     return rawCode;
   }
-  const normalizedBaseUrl = QR_BASE_URL.replace(/\/+$/, '');
-  return `${normalizedBaseUrl}/?qr=${encodeURIComponent(rawCode)}`;
+  const path = window.location.pathname || '/';
+  return `${QR_BASE_URL}${path}?qr=${encodeURIComponent(rawCode)}`;
 }
 
 function getLocalIpCandidates() {
@@ -233,42 +220,31 @@ function isLocalHost(origin) {
 }
 
 async function prepareQrBaseUrl() {
-  QR_BASE_URL = 'https://kyousukebobo-pixel.github.io/pawsqr';
-}
-
-// Send welcome email via EmailJS
-async function sendWelcomeEmail(firstName, email) {
-  if (!window.emailjs || !email) return;
-  try {
-    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-      to_name: firstName,
-      to_email: email,
-    });
-    console.log('Welcome email sent!');
-  } catch (error) {
-    console.error('Email send failed:', error);
+  // Priority 1: explicit override from hosting environment (useful for ngrok or production)
+  if (window.PETNET_BASE_URL) {
+    QR_BASE_URL = window.PETNET_BASE_URL.replace(/\/$/, '');
+    return;
   }
-}
 
-// Send welcome emails to all non-admin users (one-time admin action)
-async function sendWelcomeEmailsToAllUsers() {
-  if (!confirm('Send welcome emails to all registered users?')) return;
-  const users = await loadData('users');
-  const regularUsers = users.filter(u => u.role !== 'admin');
-  let successCount = 0;
-  for (const user of regularUsers) {
-    try {
-      if (!window.emailjs) continue;
-      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-        to_name: user.first_name || 'Pet Owner',
-        to_email: user.email,
-      });
-      successCount++;
-    } catch (e) {
-      console.error('Failed to send to:', user.email, e);
-    }
+  const origin = window.location.origin || '';
+  // Avoid using machine-local hostnames that won't resolve on mobile (.local or custom hostnames)
+  if (origin && !isLocalHost(origin) && !origin.includes('.local')) {
+    QR_BASE_URL = origin;
+    return;
   }
-  alert(`Welcome emails sent to ${successCount} users!`);
+
+  // Try to find a LAN IP candidate (IPv4) as a fallback for testing on same Wi-Fi network
+  const localIps = await getLocalIpCandidates();
+  const fallbackIp = localIps.find((ip) => ip && !ip.startsWith('127.') && !ip.startsWith('169.') && !ip.includes(':'));
+  if (fallbackIp) {
+    const port = window.location.port ? `:${window.location.port}` : '';
+    QR_BASE_URL = `${window.location.protocol}//${fallbackIp}${port}`;
+    return;
+  }
+
+  // If we couldn't determine a usable URL, leave empty and warn the developer
+  QR_BASE_URL = '';
+  console.warn('QR_BASE_URL not set. For mobile scanning, set window.PETNET_BASE_URL to an accessible URL (e.g. http://192.168.1.X:5500) or use a tunnel like ngrok.');
 }
 
 function normalizeQrText(scannedText) {
@@ -390,6 +366,11 @@ function ensurePetQrModal() {
           <div class="qr-pet-meta"></div>
         </div>
 
+        <label class="qr-url-label" for="petQrUrlText">QR URL</label>
+        <input id="petQrUrlText" class="qr-url-display" type="text" readonly />
+
+        <div class="qr-how-it-works"></div>
+
         <div class="qr-actions" aria-label="QR actions">
           <button type="button" id="petQrDownloadBtn" class="secondary">Download</button>
           <button type="button" id="petQrCopyBtn" class="secondary">Copy Link</button>
@@ -432,6 +413,8 @@ async function openPetQrModal(pet, qrCode) {
   const collarValue = modal.querySelector('.qr-code-value');
   const petNameEl = modal.querySelector('.qr-pet-name');
   const petMetaEl = modal.querySelector('.qr-pet-meta');
+  const qrUrlInput = modal.querySelector('#petQrUrlText');
+  const howItWorks = modal.querySelector('.qr-how-it-works');
   const chart = modal.querySelector('#petQrChart');
   const totalPill = modal.querySelector('.scan-total-pill');
   const lastScannedEl = modal.querySelector('.scan-last-scanned');
@@ -446,6 +429,8 @@ async function openPetQrModal(pet, qrCode) {
   collarValue.textContent = qrCode.code;
   petNameEl.textContent = petName;
   petMetaEl.textContent = `${pet.breed || 'Unknown breed'} • ${pet.age || 'Age unknown'}`;
+  qrUrlInput.value = qrUrl;
+  howItWorks.textContent = `First scan → registration page to link the collar. Every scan after → goes straight to ${petName}'s profile.`;
 
   qrStage.innerHTML = '';
   new QRCode(qrStage, {
@@ -598,7 +583,7 @@ async function renderUserDashboard() {
     const title = document.createElement('h4');
     title.textContent = pet.name;
     const details = document.createElement('p');
-    details.innerHTML = `<strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}${pet.address ? `<br><strong>Address:</strong> ${pet.address}` : ''}`;
+    details.innerHTML = `<strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
     const label = document.createElement('small');
     const code = qrCodes.find((qr) => qr.id === pet.qr_code_id);
     label.textContent = `Collar: ${code ? code.code : 'Not assigned'}`;
@@ -712,10 +697,8 @@ async function renderAdminScanHistory(recentOnly = false) {
     return;
   }
 
-  const displayHistory = recentOnly ? history.slice(0, 8) : history;
-
   container.innerHTML = '';
-  displayHistory.forEach(scan => {
+  history.forEach(scan => {
     const qr = qrCodes ? qrCodes.find(q => String(q.id) === String(scan.qr_code_id)) : null;
     const pet = pets ? pets.find(p => String(p.qr_code_id) === String(qr ? qr.id : scan.qr_code_id)) : null;
     const div = document.createElement('div');
@@ -771,28 +754,32 @@ async function renderAdminQrStatus() {
     return;
   }
 
-  // Compute counts based on pet assignment and pet.is_lost flag
-  const counts = { assigned: 0, available: 0, lost: 0 };
+  const counts = { assigned: 0, available: 0, deactivated: 0, lost: 0 };
   qrCodes.forEach(qr => {
-    const assignedPet = pets.find(p => String(p.qr_code_id) === String(qr.id));
-    if (assignedPet && assignedPet.is_lost) {
-      counts.lost++;
-    } else if (assignedPet) {
-      counts.assigned++;
-    } else {
-      counts.available++;
-    }
+    if (qr.status === 'assigned') counts.assigned++;
+    else if (qr.status === 'available') counts.available++;
+    else if (qr.status === 'deactivated') counts.deactivated++;
+    else if (qr.status === 'lost') counts.lost++;
   });
   const total = qrCodes.length;
 
-  // Update summary card with each status on its own line and Total separate
+  // Update summary card
   const summaryEl = $('qrStatusSummary');
   if (summaryEl) {
     summaryEl.innerHTML = `
-      <div>🟢 Active/Assigned: ${counts.assigned} (${total ? Math.round(counts.assigned/total*100) : 0}%)</div>
-      <div>🟠 Unassigned: ${counts.available} (${total ? Math.round(counts.available/total*100) : 0}%)</div>
-      <div>🔴 Lost Status: ${counts.lost} (${total ? Math.round(counts.lost/total*100) : 0}%)</div>
-      <div style="margin-top:8px;"><strong>Total Collars: ${total}</strong></div>
+      <div class="progress-bar-container">
+        <div class="progress-segment green" style="width:${(counts.assigned/total*100)||0}%"></div>
+        <div class="progress-segment orange" style="width:${(counts.available/total*100)||0}%"></div>
+        <div class="progress-segment gray" style="width:${(counts.deactivated/total*100)||0}%"></div>
+        <div class="progress-segment red" style="width:${(counts.lost/total*100)||0}%"></div>
+      </div>
+      <div class="legend">
+        <span>🟢 Active/Assigned: ${counts.assigned} (${total ? Math.round(counts.assigned/total*100) : 0}%)</span>
+        <span>🟠 Unassigned: ${counts.available} (${total ? Math.round(counts.available/total*100) : 0}%)</span>
+        <span>⚫ Deactivated: ${counts.deactivated} (${total ? Math.round(counts.deactivated/total*100) : 0}%)</span>
+        <span>🔴 Lost Status: ${counts.lost} (${total ? Math.round(counts.lost/total*100) : 0}%)</span>
+        <strong>Total Collars: ${total}</strong>
+      </div>
     `;
   }
 
@@ -802,6 +789,7 @@ async function renderAdminQrStatus() {
   tableBody.innerHTML = '';
 
   qrCodes.forEach(qr => {
+    // Find assigned pet by matching qr.id to pet.qr_code_id (support string/number types)
     const assignedPet = pets.find(p => String(p.qr_code_id) === String(qr.id)) || null;
     const owner = assignedPet ? users.find(u => String(u.id) === String(assignedPet.owner_id)) : null;
     const scanCount = history.filter(h => String(h.qr_code_id) === String(qr.id)).length;
@@ -809,24 +797,13 @@ async function renderAdminQrStatus() {
     const ownerName = owner ? [owner.first_name, owner.last_name].filter(Boolean).join(' ') : '—';
     const petName = assignedPet ? assignedPet.name : '—';
 
-    let displayStatus, statusColor;
-    if (assignedPet) {
-      if (assignedPet.is_lost) {
-        displayStatus = 'Lost';
-        statusColor = 'red';
-      } else {
-        displayStatus = 'Active';
-        statusColor = 'green';
-      }
-    } else {
-      displayStatus = 'Unassigned';
-      statusColor = 'orange';
-    }
+    const statusColors = { assigned: 'green', available: 'orange', deactivated: 'gray', lost: 'red' };
+    const statusLabels = { assigned: 'Active', available: 'Unassigned', deactivated: 'Deactivated', lost: 'Lost Status' };
 
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${qr.code}</td>
-      <td>${displayStatus}</td>
+      <td><span class="status-pill ${statusColors[qr.status] || 'gray'}">${statusLabels[qr.status] || qr.status}</span></td>
       <td>${petName}</td>
       <td>${ownerName}</td>
       <td>${scanCount}</td>
@@ -872,55 +849,42 @@ function loginSocialUser(provider) {
 }
 
 function triggerGoogleSignIn() {
-  if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) {
-    showMessage('Google Sign-In is not available. Please try again.');
+  if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+    showMessage('Google Sign-In service is not available. Please ensure Google Identity Services library is loaded.');
     return;
   }
 
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: 'email profile',
-    callback: async (response) => {
-      if (response.error) {
-        showMessage('Google Sign-In failed. Please try again.');
-        return;
-      }
-      try {
-        const res = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${response.access_token}`);
-        const profile = await res.json();
-        let user = await getUserByEmail(profile.email);
-        if (user) {
-          saveCurrentUser(user);
-          setNavigation();
-          if (user.role === 'admin') {
-            renderAdminPanel();
-          } else {
-            await routeAfterLogin();
-          }
-        } else {
-          const phone = prompt('Welcome! Please enter your phone number:');
-          if (!phone) { showMessage('Phone number is required.'); return; }
-          const { first_name, last_name } = splitFullName(profile.name);
-          const newUser = {
-            first_name, last_name,
-            email: profile.email.toLowerCase(),
-            phone,
-            password: `google-${profile.sub}`,
-            role: 'user',
-            provider: 'google',
-            picture: profile.picture,
-          };
-          const savedUser = await saveData('users', newUser);
-          saveCurrentUser(savedUser);
-          setNavigation();
-          await routeAfterLogin();
+  try {
+    // Ensure we don't auto-select an already signed-in account
+    if (google.accounts.id.disableAutoSelect) google.accounts.id.disableAutoSelect();
+
+    // Try One Tap first; if it doesn't display, render a popup button and open it
+    google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+        // If One Tap doesn't show, fall back to programmatic popup sign-in
+        let btn = document.getElementById('petnet-google-btn');
+        if (!btn) {
+          btn = document.createElement('div');
+          btn.id = 'petnet-google-btn';
+          btn.style.position = 'fixed';
+          btn.style.left = '-9999px';
+          document.body.appendChild(btn);
         }
-      } catch (err) {
-        showMessage('Google Sign-In failed. Please try again.');
+        google.accounts.id.renderButton(
+          btn,
+          { type: 'standard', size: 'large', theme: 'outline', text: 'signin_with' }
+        );
+        // Click the hidden button to open the popup chooser
+        setTimeout(() => {
+          const rendered = btn.querySelector('button');
+          if (rendered) rendered.click();
+        }, 100);
       }
-    },
-  });
-  client.requestAccessToken();
+    });
+  } catch (error) {
+    console.error('Google Sign-In error:', error);
+    showMessage('Google Sign-In failed. Please try again.');
+  }
 }
 
 function handleGoogleSignInResponse(response) {
@@ -1020,7 +984,21 @@ function splitFullName(fullName) {
 }
 
 function initGoogleSignIn() {
-  // OAuth2 token client is initialized on demand in triggerGoogleSignIn()
+  if (!window.google) {
+    console.warn('Google Identity Services library not yet loaded.');
+    return;
+  }
+
+  try {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleSignInResponse,
+      auto_select: false, // Disable auto-select to require user action
+      ux_mode: 'popup', // Use popup instead of redirect
+    });
+  } catch (error) {
+    console.error('Google Sign-In initialization error:', error);
+  }
 }
 
 // Initialize Facebook SDK (client-side). Set `FACEBOOK_APP_ID` above.
@@ -1156,51 +1134,75 @@ async function autoLoginFromHash() {
 }
 
 async function routeToView() {
+  // Ensure navigation visibility is correct before routing
   setNavigation();
-
+  
+  const hash = location.hash.replace('#', '');
+  const queryParams = new URLSearchParams(window.location.search);
+  const deepQr = queryParams.get('qr');
+  
+  // SCENARIO A: Deep-link via QR code scan (handle before checking currentUser)
+  // This is public - works whether user is logged in or not
+  if (deepQr) {
+    const rawCode = normalizeQrText(deepQr);
+    const qrCodes = await loadData('qr_codes');
+    const qrCode = qrCodes.find((q) => q.code === rawCode);
+    
+    if (!qrCode) {
+      // QR code doesn't exist in system
+      showMessage('This QR code is not recognized. Please contact support.');
+      showView('loginScreen');
+      return;
+    }
+    
+    // SCENARIO B: QR code is REGISTERED to a pet - show pet info (public finder view)
+    if (qrCode.status === 'assigned' && qrCode.pet_id) {
+      await renderFinderResult(rawCode);
+      return;
+    }
+    
+    // SCENARIO C: QR code is UNREGISTERED (available) - send to login/registration
+    if (qrCode.status === 'available') {
+      STATE.pendingQrCode = qrCode;
+      showView('loginScreen');
+      showMessage('Welcome! This collar is ready to be registered. Please log in or create an account.');
+      return;
+    }
+    
+    // SCENARIO D: QR code exists but is deactivated or lost - show error
+    showMessage('This collar has been deactivated or marked as lost. Please contact support.');
+    showView('loginScreen');
+    return;
+  }
+  
   if (!STATE.currentUser) {
     showView('loginScreen');
     return;
   }
 
   if (STATE.currentUser.role === 'admin') {
-    const lastView = localStorage.getItem('pawsqr_last_view');
-    const adminViews = ['adminOwnersScreen', 'adminPetsScreen', 'adminScansScreen', 'adminQrCodesScreen', 'adminQrStatusScreen', 'adminPanelScreen'];
-    if (lastView && adminViews.includes(lastView)) {
-      if (lastView === 'adminOwnersScreen') { showView('adminOwnersScreen'); await renderAdminOwners(); }
-      else if (lastView === 'adminPetsScreen') { showView('adminPetsScreen'); await renderAdminRegisteredPets(); }
-      else if (lastView === 'adminScansScreen') { await renderAdminScanHistory(); }
-      else if (lastView === 'adminQrCodesScreen') { showView('adminQrCodesScreen'); await renderAdminQrCodes(); }
-      else if (lastView === 'adminQrStatusScreen') { showView('adminQrStatusScreen'); await renderAdminQrStatus(); }
-      else { renderAdminPanel(); }
-    } else {
-      renderAdminPanel();
-    }
+    renderAdminPanel();
     return;
   }
 
-  const lastView = localStorage.getItem('pawsqr_last_view');
-  const userViews = ['dashboardScreen', 'historyScreen', 'finderScreen', 'petFormScreen'];
-
-  if (lastView && userViews.includes(lastView)) {
-    if (lastView === 'historyScreen') { showView('historyScreen'); await showHistoryView(); }
-    else if (lastView === 'finderScreen') { showView('finderScreen'); }
-    else if (lastView === 'petFormScreen') { showView('dashboardScreen'); await renderUserDashboard(); }
-    else { showView('dashboardScreen'); await renderUserDashboard(); }
-  } else {
-    showView('dashboardScreen');
-    await renderUserDashboard();
+  if (hash === 'register') {
+    beginPetRegistration();
+    return;
   }
+  if (hash === 'history') {
+    showView('historyScreen');
+    showHistoryView();
+    return;
+  }
+  if (hash === 'finder') {
+    showView('finderScreen');
+    return;
+  }
+  showView('dashboardScreen');
+  await renderUserDashboard();
 }
 
 async function routeAfterLogin() {
-  if (STATE.pendingQrCode) {
-    const pendingQrCode = STATE.pendingQrCode;
-    STATE.pendingQrCode = null;
-    await beginPetRegistration(null, pendingQrCode);
-    return;
-  }
-
   const pets = await loadData('pets');
   const userPets = pets.filter(p => p.owner_id === STATE.currentUser.id);
   if (userPets.length > 0) {
@@ -1233,11 +1235,6 @@ async function login(email, password) {
 
   saveCurrentUser(data);
   setNavigation();
-  if (STATE.pendingQrCode) {
-    beginPetRegistration(null, STATE.pendingQrCode);
-    STATE.pendingQrCode = null;
-    return;
-  }
   await routeAfterLogin();
 }
 
@@ -1249,18 +1246,6 @@ async function registerUser() {
   const email = document.getElementById('createEmail').value.trim();
   const phone = document.getElementById('createPhone').value.trim();
   const password = document.getElementById('createPassword').value;
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const emailEl = document.getElementById('createEmail');
-  const emailErrorEl = document.getElementById('createEmailError');
-  if (!emailRegex.test(email)) {
-    if (emailErrorEl) emailErrorEl.textContent = 'Please enter a valid email address.';
-    if (emailEl) {
-      emailEl.style.borderColor = 'red';
-      emailEl.focus();
-    }
-    return;
-  }
 
   const { data, error } = await db.from('users').insert([{
     first_name: firstName,
@@ -1279,20 +1264,29 @@ async function registerUser() {
     return;
   }
 
-  saveCurrentUser(data);
-  setNavigation();
-  document.getElementById('createAccountForm').reset();
-  if (STATE.pendingQrCode) {
-    beginPetRegistration(null, STATE.pendingQrCode);
-    STATE.pendingQrCode = null;
-    return;
-  }
+  // Send welcome email if EmailJS is configured
   try {
-    await sendWelcomeEmail(firstName, email);
+    if (window.emailjs && EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && !EMAILJS_SERVICE_ID.includes('YOUR_') && !EMAILJS_TEMPLATE_ID.includes('YOUR_')) {
+      const toName = `${firstName} ${lastName}`.trim() || email;
+      const templateParams = {
+        to_name: toName,
+        to_email: email,
+        email: email
+      };
+      try {
+        await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+        console.log('Welcome email sent to', email);
+      } catch (sendErr) {
+        console.error('Error sending welcome email:', sendErr);
+      }
+    }
   } catch (e) {
-    console.warn('Failed to send welcome email:', e);
+    console.warn('EmailJS welcome send skipped:', e);
   }
-  await routeAfterLogin();
+
+  document.getElementById('createAccountForm').reset();
+  alert('Account created successfully! Please log in.');
+  showView('loginScreen');
 }
 
 function registerSocialUser(provider) {
@@ -1311,11 +1305,6 @@ function handleLogout() {
     sessionStorage.removeItem('pawsqr_session');
   } catch (e) {
     console.warn('Unable to clear session:', e);
-  }
-  try {
-    localStorage.removeItem('pawsqr_last_view');
-  } catch (e) {
-    // ignore
   }
   setNavigation();
   toggleLoginState('welcome');
@@ -1385,23 +1374,11 @@ async function beginPetRegistration(editPet = null, preVerifiedQr = null) {
     $('petName').value = editPet.name;
     $('petAge').value = editPet.age;
     $('petBreed').value = editPet.breed;
-    if (editPet.pet_type) {
-      const radio = document.querySelector(`input[name="petType"][value="${editPet.pet_type}"]`);
-      if (radio) {
-        radio.checked = true;
-        radio.dispatchEvent(new Event('change'));
-      }
-      $('petBreed').value = editPet.breed;
-    }
-    $('petAddress').value = editPet.address || '';
     $('petPhoto').value = editPet.photo;
     $('petCharacteristics').value = editPet.characteristics;
     $('petAllergies').value = editPet.allergies;
     $('petMedications').value = editPet.medications;
-    const savedImmunizations = editPet.immunizations ? editPet.immunizations.split(', ') : [];
-    document.querySelectorAll('#immunizationCheckboxes input').forEach(cb => {
-      cb.checked = savedImmunizations.includes(cb.value);
-    });
+    $('petImmunizations').value = editPet.immunizations;
     if (editPet.qr_code_id) {
       const qrs = await loadData('qr_codes');
       const qr = qrs.find((code) => code.id === editPet.qr_code_id);
@@ -1437,6 +1414,8 @@ async function toggleLostStatus(petId, isLost) {
   }
   await renderUserDashboard();
 }
+
+// Removed lost-pet broadcast emails per user request.
 
 async function editPet(petId) {
   const pets = await loadData('pets');
@@ -1524,7 +1503,7 @@ function launchQrScanner(target) {
     }
   };
 
-  setTimeout(cleanupAndStartScanner, 150);
+  cleanupAndStartScanner();
 }
 
 async function handlePetQrScan(decodedText) {
@@ -1567,16 +1546,6 @@ async function handlePetQrScan(decodedText) {
     qrRecord = newQr;
   }
 
-  try {
-    const { data: assignedPet } = await db.from('pets').select('*').eq('qr_code_id', qrRecord.id).single();
-    if (assignedPet) {
-      await db.from('qr_codes').update({ status: 'assigned' }).eq('id', qrRecord.id);
-      qrRecord = { ...qrRecord, status: 'assigned' };
-    }
-  } catch (error) {
-    // No assigned pet found for this QR; keep existing status
-  }
-
   if (qrRecord.status === 'assigned') {
     $('scannerStatus').textContent = 'This QR code is already assigned to a pet. Please scan a different one.';
     STATE.currentQrVerification = null;
@@ -1590,38 +1559,24 @@ async function handlePetQrScan(decodedText) {
 }
 
 function handleFinderQrScanned(decodedText, scannerInstance, container) {
+  // Stop the scanner immediately
   scannerInstance.stop()
-    .then(async () => {
-      try { scannerInstance.clear(); } catch(e) {}
+    .then(() => {
+      scannerInstance.clear().catch(() => {});
       STATE.finderScanner = null;
       container.classList.add('hidden');
-
-      let scannedCode = decodedText.trim();
-      try {
-        if (scannedCode.startsWith('http')) {
-          const url = new URL(scannedCode);
-          const qrParam = url.searchParams.get('qr');
-          if (qrParam) scannedCode = decodeURIComponent(qrParam);
-        }
-      } catch(e) {}
-
-      await showPublicPetProfile(scannedCode);
+      
+      // Set the input and lookup
+      $('finderQrInput').value = decodedText;
+      handleFinderLookup();
     })
-    .catch(async () => {
-      try { scannerInstance.clear(); } catch(e) {}
+    .catch(() => {
+      scannerInstance.clear().catch(() => {});
       STATE.finderScanner = null;
       container.classList.add('hidden');
-
-      let scannedCode = decodedText.trim();
-      try {
-        if (scannedCode.startsWith('http')) {
-          const url = new URL(scannedCode);
-          const qrParam = url.searchParams.get('qr');
-          if (qrParam) scannedCode = decodeURIComponent(qrParam);
-        }
-      } catch(e) {}
-
-      await showPublicPetProfile(scannedCode);
+      
+      $('finderQrInput').value = decodedText;
+      handleFinderLookup();
     });
 }
 
@@ -1658,216 +1613,150 @@ async function verifyScannedQr(codeText) {
   console.log('QR code verification successful, STATE.currentQrVerification set:', STATE.currentQrVerification);
 }
 
-async function handleFinderLookup() {
+function handleFinderLookup() {
   const codeText = $('finderQrInput').value.trim();
-  if (!codeText) return;
   const rawCode = normalizeQrText(codeText);
-  await showPublicPetProfile(rawCode);
+  renderFinderResult(rawCode);
 }
 
 async function renderFinderResult(rawCode) {
   const qrCodes = await loadData('qr_codes');
   const pets = await loadData('pets');
   const users = await loadData('users');
-
+  
   const qrCode = qrCodes.find((q) => q.code === rawCode);
-
-  if (!qrCode) {
-    showMessage('QR code not recognized.');
+  if (!qrCode || !qrCode.pet_id) {
+    showMessage('This pet has not been registered yet. Redirecting to the login screen.');
+    showView('loginScreen');
+    setNavigation();
+    const loginEmail = $('loginEmail');
+    const loginPassword = $('loginPassword');
+    if (loginEmail) loginEmail.value = '';
+    if (loginPassword) loginPassword.value = '';
     return;
   }
-
-  const pet = pets.find((p) => String(p.qr_code_id) === String(qrCode.id));
-  const scannedBy = STATE.currentUser
-    ? [STATE.currentUser.first_name, STATE.currentUser.last_name].filter(Boolean).join(' ').trim() || 'Anonymous'
-    : 'Anonymous';
-
-  try {
-    await db.from('scan_history').insert([{
-      qr_code_id: qrCode.id,
-      scanned_by: scannedBy,
-      scanned_at: new Date().toISOString()
-    }]);
-  } catch (error) {
-    console.error('Error recording finder lookup history:', error);
-  }
-
-  if (!pet) {
-    if (STATE.currentUser) {
-      STATE.pendingQrCode = qrCode;
-      beginPetRegistration(null, qrCode);
-    } else {
-      STATE.pendingQrCode = qrCode;
-      toggleLoginState('form');
-      showView('loginScreen');
-    }
-    return;
-  }
-
+  const pet = pets.find((p) => p.id === qrCode.pet_id);
   const owner = users.find((u) => u.id === pet.owner_id);
-
+  showView('finderScreen');
   const result = $('finderResult');
   result.innerHTML = `
-    <div class="public-pet-profile">
-      ${pet.is_lost ? `
-        <div class="lost-alert">
-          <strong>This pet is reported lost</strong>
-          <p>Please contact the owner immediately — they are waiting for your call.</p>
-        </div>
-      ` : ''}
-
-      <div class="public-pet-hero">
-        <img src="${pet.photo}" alt="${pet.name}" />
-        <div class="public-pet-summary">
-          <h2>${pet.name}</h2>
-          <p>${pet.breed} · ${pet.age}</p>
-        </div>
-      </div>
-
-      ${owner && owner.phone ? `
-        <div class="public-pet-contact">
-          <a href="tel:${owner.phone}">📞 Call Owner</a>
-        </div>
-      ` : ''}
-
-      <section class="public-pet-details">
-        <h3>Pet Information</h3>
-        <p><strong>Breed:</strong> ${pet.breed}</p>
-        <p><strong>Age:</strong> ${pet.age}</p>
-        <p><strong>Characteristics:</strong> ${pet.characteristics}</p>
-      </section>
-
-      ${(pet.allergies || pet.medications) ? `
-        <section class="public-pet-medical">
-          <h3>Medical Alerts</h3>
-          ${pet.allergies ? `<p><strong>Allergies:</strong> ${pet.allergies}</p>` : ''}
-          ${pet.medications ? `<p><strong>Medications:</strong> ${pet.medications}</p>` : ''}
-        </section>
-      ` : ''}
+    <h3>${pet.name}</h3>
+    <img src="${pet.photo}" alt="${pet.name}" style="width:100%;border-radius:16px;margin-bottom:12px;max-height:260px;object-fit:cover;" />
+    <p><strong>Breed:</strong> ${pet.breed}</p>
+    <p><strong>Age:</strong> ${pet.age}</p>
+    <p><strong>Characteristics:</strong> ${pet.characteristics}</p>
+    <p><strong>Allergies:</strong> ${pet.allergies || 'None'}<br><strong>Medications:</strong> ${pet.medications || 'None'}<br><strong>Immunizations:</strong> ${pet.immunizations || 'Unspecified'}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;">
+      <a class="primary" href="tel:${owner.phone}" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Call Owner</a>
+      <a class="secondary" href="mailto:${owner.email}?subject=Found%20${encodeURIComponent(pet.name)}" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Email Owner</a>
     </div>
   `;
-
-  showView('finderScreen');
+  // Save a scan record to Supabase (Finder lookup)
+  try {
+    const { error: scanError } = await db.from('scan_history').insert([{
+      qr_code_id: qrCode.id,
+      scanned_by: STATE.currentUser ? [STATE.currentUser.first_name, STATE.currentUser.last_name].filter(Boolean).join(' ') : 'Anonymous',
+      location: null,
+      scanned_at: new Date().toISOString(),
+      user_id: owner.id,
+      pet_id: pet.id,
+      qr_code_text: qrCode.code,
+      action: 'Finder lookup'
+    }]);
+    if (scanError) console.error('Error saving scan history:', scanError);
+  } catch (e) {
+    console.error('Unexpected error saving scan history:', e);
+  }
 }
 
 async function recordHistory(entry) {
+  const history = await loadData('scan_history');
   await saveData('scan_history', {
     ...entry,
-    scanned_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   });
 }
 
 async function submitPetForm(event) {
   event.preventDefault();
-  if (submitPetForm._isSubmitting) return;
-  submitPetForm._isSubmitting = true;
-  const saveBtn = event.target.querySelector('button[type="submit"]');
-  if (saveBtn) {
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving...';
+  const petName = $('petName').value.trim();
+  const petAge = $('petAge').value.trim();
+  const petBreed = $('petBreed').value.trim();
+  const petPhoto = $('petPhoto').value.trim();
+  const petCharacteristics = $('petCharacteristics').value.trim();
+  const petAllergies = $('petAllergies').value.trim();
+  const petMedications = $('petMedications').value.trim();
+  const petImmunizations = $('petImmunizations').value.trim();
+  const editingId = $('editingPetId').value;
+
+  if (!STATE.currentQrVerification) {
+    showMessage('You must scan a QR code first.');
+    return;
   }
 
-  try {
-    const petName = $('petName').value.trim();
-    const petAge = $('petAge').value.trim();
-    const petBreed = $('petBreed').value.trim();
-    const petType = document.querySelector('input[name="petType"]:checked')?.value || '';
-    const petAddress = $('petAddress').value.trim();
-    const petPhoto = $('petPhoto').value.trim();
-    const petCharacteristics = $('petCharacteristics').value.trim();
-    const petAllergies = $('petAllergies').value.trim();
-    const petMedications = $('petMedications').value.trim();
-    const checked = Array.from(document.querySelectorAll('#immunizationCheckboxes input:checked')).map(cb => cb.value);
-    const petImmunizations = checked.join(', ') || 'None';
-    const editingId = $('editingPetId').value;
-
-    if (!STATE.currentQrVerification && !editingId) {
-      showMessage('You must scan a QR code first.');
-      return;
-    }
-
-    const pets = await loadData('pets');
-    const qrCodes = await loadData('qr_codes');
-    const existingPet = editingId ? pets.find((p) => p.id === editingId) : null;
-    const { data: freshQr, error: qrError } = await db.from('qr_codes').select('*').eq('id', STATE.currentQrVerification.id).single();
-    if (qrError || !freshQr) {
-      showMessage('QR code not found. Please scan again.');
-      STATE.currentQrVerification = null;
-      return;
-    }
-    if (freshQr.status === 'assigned' && (!existingPet || existingPet.qr_code_id !== freshQr.id)) {
-      showMessage('This QR code is already assigned to a pet. Please scan a different one.');
-      STATE.currentQrVerification = null;
-      return;
-    }
-    const qr = freshQr;
-
-    if (editingId) {
-      const existingPet = pets.find((p) => p.id === editingId);
-      if (!existingPet) {
-        showMessage('Pet not found.');
-        return;
-      }
-      await updateData('pets', editingId, {
-        name: petName,
-        age: petAge,
-        breed: petBreed,
-        pet_type: petType,
-        address: petAddress,
-        photo: petPhoto,
-        characteristics: petCharacteristics,
-        allergies: petAllergies,
-        medications: petMedications,
-        immunizations: petImmunizations,
-        qr_code_id: qr.id,
-      });
-      await updateData('qr_codes', qr.id, {
-        pet_id: editingId,
-        status: 'assigned',
-      });
-      await db.from('qr_codes').update({ status: 'assigned' }).eq('id', qr.id);
-      if (existingPet.qr_code_id !== qr.id) {
-        const previousIndex = qrCodes.findIndex((code) => code.id === existingPet.qr_code_id);
-        if (previousIndex >= 0) {
-          await updateData('qr_codes', qrCodes[previousIndex].id, { status: 'available', pet_id: null });
-        }
-        await updateData('qr_codes', qr.id, { pet_id: existingPet.id, status: 'assigned' });
-        await db.from('qr_codes').update({ status: 'assigned' }).eq('id', qr.id);
-      }
-      await recordHistory({ action: 'Updated pet profile', user_id: STATE.currentUser.id, pet_id: existingPet.id, qr_code_id: qr.id, qr_code_text: qr.code });
-    } else {
-      const newPet = {
-        owner_id: STATE.currentUser.id,
-        name: petName,
-        age: petAge,
-        breed: petBreed,
-        pet_type: petType,
-        address: petAddress,
-        photo: petPhoto,
-        characteristics: petCharacteristics,
-        allergies: petAllergies,
-        medications: petMedications,
-        immunizations: petImmunizations,
-        qr_code_id: qr.id,
-        created_at: new Date().toISOString(),
-      };
-      const savedPet = await saveData('pets', newPet);
-      await updateData('qr_codes', qr.id, { pet_id: savedPet.id, status: 'assigned' });
-      await db.from('qr_codes').update({ status: 'assigned' }).eq('id', qr.id);
-      await recordHistory({ action: 'Registered pet', user_id: STATE.currentUser.id, pet_id: savedPet.id, qr_code_id: qr.id, qr_code_text: qr.code });
-    }
-
-    $('petForm').reset();
+  const pets = await loadData('pets');
+  const existingPet = editingId ? pets.find((p) => p.id === editingId) : null;
+  const { data: freshQr, error: qrError } = await db.from('qr_codes').select('*').eq('id', STATE.currentQrVerification.id).single();
+  if (qrError || !freshQr) {
+    showMessage('QR code not found. Please scan again.');
     STATE.currentQrVerification = null;
-    showView('dashboardScreen');
-    await renderUserDashboard();
-  } finally {
-    submitPetForm._isSubmitting = false;
-    if (saveBtn) {
-      saveBtn.disabled = false;
-      saveBtn.textContent = 'Save Pet';
-    }
+    return;
   }
+  if (freshQr.status === 'assigned' && (!existingPet || existingPet.qr_code_id !== freshQr.id)) {
+    showMessage('This QR code is already assigned to a pet. Please scan a different one.');
+    STATE.currentQrVerification = null;
+    return;
+  }
+  const qr = freshQr;
+
+  if (editingId) {
+    const existingPet = pets.find((p) => p.id === editingId);
+    if (!existingPet) {
+      showMessage('Pet not found.');
+      return;
+    }
+    await updateData('pets', editingId, {
+      name: petName,
+      age: petAge,
+      breed: petBreed,
+      photo: petPhoto,
+      characteristics: petCharacteristics,
+      allergies: petAllergies,
+      medications: petMedications,
+      immunizations: petImmunizations,
+      qr_code_id: qr.id,
+    });
+    if (existingPet.qr_code_id !== qr.id) {
+      const previousIndex = qrCodes.findIndex((code) => code.id === existingPet.qr_code_id);
+      if (previousIndex >= 0) {
+        await updateData('qr_codes', qrCodes[previousIndex].id, { status: 'available', pet_id: null });
+      }
+      await updateData('qr_codes', qr.id, { pet_id: existingPet.id, status: 'assigned' });
+    }
+    await recordHistory({ action: 'Updated pet profile', user_id: STATE.currentUser.id, pet_id: existingPet.id, qr_code_text: qr.code });
+  } else {
+    const newPet = {
+      owner_id: STATE.currentUser.id,
+      name: petName,
+      age: petAge,
+      breed: petBreed,
+      photo: petPhoto,
+      characteristics: petCharacteristics,
+      allergies: petAllergies,
+      medications: petMedications,
+      immunizations: petImmunizations,
+      qr_code_id: qr.id,
+      created_at: new Date().toISOString(),
+    };
+    const savedPet = await saveData('pets', newPet);
+    await updateData('qr_codes', qr.id, { pet_id: savedPet.id, status: 'assigned' });
+    await recordHistory({ action: 'Registered pet', user_id: STATE.currentUser.id, pet_id: savedPet.id, qr_code_text: qr.code });
+  }
+
+  $('petForm').reset();
+  STATE.currentQrVerification = null;
+  showView('dashboardScreen');
+  await renderUserDashboard();
 }
 
 async function generateQrCodeBatch(count = 1) {
@@ -1975,35 +1864,6 @@ function attachEvents() {
     await registerUser();
   });
 
-  // Real-time and blur validation for create email
-  const createEmailInput = document.getElementById('createEmail');
-  if (createEmailInput) {
-    createEmailInput.addEventListener('input', () => {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const isValid = emailRegex.test(createEmailInput.value.trim());
-      createEmailInput.style.borderColor = createEmailInput.value.trim() === '' ? '' : (isValid ? 'green' : 'red');
-      const errEl = document.getElementById('createEmailError');
-      if (errEl && isValid) errEl.textContent = '';
-    });
-
-    createEmailInput.addEventListener('blur', () => {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const val = createEmailInput.value.trim();
-      if (val && !emailRegex.test(val)) {
-        createEmailInput.style.borderColor = 'red';
-        createEmailInput.style.outline = 'none';
-        createEmailInput.setCustomValidity('Please enter a valid email address.');
-        const errEl = document.getElementById('createEmailError');
-        if (errEl) errEl.textContent = 'Please enter a valid email address.';
-      } else {
-        createEmailInput.style.borderColor = val ? 'green' : '';
-        createEmailInput.setCustomValidity('');
-        const errEl = document.getElementById('createEmailError');
-        if (errEl) errEl.textContent = '';
-      }
-    });
-  }
-
   // Fix 1: Eye icon toggle for password visibility
   const toggleBtn = document.getElementById('togglePassword');
   const passwordInput = document.getElementById('createPassword');
@@ -2013,28 +1873,6 @@ function attachEvents() {
       toggleBtn.textContent = passwordInput.type === 'password' ? '👁' : '🙈';
     });
   }
-
-  const toggleConfirmBtn = document.getElementById('toggleConfirmPassword');
-  const confirmPasswordInput = document.getElementById('confirmPassword');
-  if (toggleConfirmBtn && confirmPasswordInput) {
-    toggleConfirmBtn.addEventListener('click', () => {
-      confirmPasswordInput.type = confirmPasswordInput.type === 'password' ? 'text' : 'password';
-      toggleConfirmBtn.textContent = confirmPasswordInput.type === 'password' ? '👁' : '🙈';
-    });
-  }
-
-  const dogBreeds = ['Askal','Labrador','Bulldog','Poodle','Beagle','German Shepherd','Golden Retriever','Shih Tzu','Chihuahua','Dachshund','Siberian Husky','Rottweiler','Doberman','Pomeranian','Chow Chow'];
-  const catBreeds = ['Puspin','Persian','Siamese','Maine Coon','Bengal','Ragdoll','British Shorthair','Sphynx','Scottish Fold','Abyssinian','Birman','Burmese','Russian Blue','Turkish Angora'];
-
-  document.querySelectorAll('input[name="petType"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-      const breeds = radio.value === 'dog' ? dogBreeds : catBreeds;
-      const breedSelect = document.getElementById('petBreed');
-      if (breedSelect) {
-        breedSelect.innerHTML = breeds.map(b => `<option value="${b}">${b}</option>`).join('');
-      }
-    });
-  });
 
   // Login password eye toggle
   const toggleLoginBtn = document.getElementById('toggleLoginPassword');
@@ -2126,8 +1964,9 @@ function attachEvents() {
       reader.readAsDataURL(file);
     });
   }
-  $('finderLookUp').addEventListener('click', async () => await handleFinderLookup());
+  $('finderLookUp').addEventListener('click', handleFinderLookup);
   $('finderScan').addEventListener('click', () => launchQrScanner('finder'));
+  $('finderBack').addEventListener('click', () => showView('dashboardScreen'));
   $('historyBack').addEventListener('click', () => showView('dashboardScreen'));
   // admin controls for recent / all views
   const btnOwnersRecent = $('btnOwnersRecent');
@@ -2146,95 +1985,9 @@ function attachEvents() {
     const count = parseInt($('batchCount').value, 10) || 1;
     await generateQrCodeBatch(count);
   });
-  const btnSendWelcomeEmails = $('btnSendWelcomeEmails');
-  if (btnSendWelcomeEmails) btnSendWelcomeEmails.addEventListener('click', sendWelcomeEmailsToAllUsers);
-}
-
-async function showPublicPetProfile(qrCodeText) {
-  const normalizedQrCode = normalizeQrText(qrCodeText);
-
-  const { data: qr, error: qrError } = await db
-    .from('qr_codes')
-    .select('*')
-    .eq('code', normalizedQrCode)
-    .single();
-
-  if (qrError || !qr) {
-    document.body.innerHTML = '<main class="public-profile-error">QR code not found.</main>';
-    return;
-  }
-
-  const { data: pet, error: petError } = await db
-    .from('pets')
-    .select('*')
-    .eq('qr_code_id', qr.id)
-    .single();
-
-  if (petError || !pet) {
-    window.location.href = window.location.origin + window.location.pathname;
-    return;
-  }
-
-  const { data: owner } = await db
-    .from('users')
-    .select('*')
-    .eq('id', pet.owner_id)
-    .single();
-
-  const currentUserName = STATE.currentUser
-    ? [STATE.currentUser.first_name, STATE.currentUser.last_name].filter(Boolean).join(' ').trim() || 'Anonymous'
-    : 'Anonymous';
-
-  try {
-    await db.from('scan_history').insert([{
-      qr_code_id: qr.id,
-      scanned_by: currentUserName,
-      scanned_at: new Date().toISOString()
-    }]);
-  } catch (error) {
-    console.error('Error recording public scan history:', error);
-  }
-
-  const ownerPhone = owner && owner.phone ? owner.phone : '';
-
-  document.body.innerHTML = `
-  <div style="max-width:480px;margin:0 auto;font-family:Inter,sans-serif;background:#f9f9f9;min-height:100vh;">
-    <div style="padding:12px 16px 0;"><a href="${window.location.origin + window.location.pathname}" style="display:inline-flex;align-items:center;gap:6px;color:#F47B20;font-weight:700;text-decoration:none;">← ${STATE.currentUser ? 'Back to Dashboard' : 'Login'}</a></div>
-    <div style="background:#F5D97E;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="color:#F47B20;font-weight:900;font-size:1.1rem;">PawsQR</span>
-      <span style="color:#888;font-size:0.85rem;font-weight:600;">Pet Profile</span>
-    </div>
-    ${pet.is_lost ? `<div style="background:#fff0f0;border-left:4px solid #e63946;border-radius:12px;padding:14px 16px;margin:16px;"><strong style="color:#e63946;display:block;margin-bottom:4px;">This pet is reported lost</strong><p style="color:#e63946;font-size:0.85rem;margin:0;">Please contact the owner immediately — they are waiting for your call.</p></div>` : ''}
-    <div style="display:flex;flex-direction:column;align-items:center;padding:24px 16px 16px;">
-      <img src="${pet.photo || ''}" alt="${pet.name}" style="width:140px;height:140px;border-radius:50%;object-fit:cover;border:4px solid white;box-shadow:0 4px 20px rgba(0,0,0,0.15);" />
-      <h2 style="font-size:1.8rem;font-weight:800;margin:12px 0 4px;">${pet.name}</h2>
-      <p style="color:#888;margin:0;">${pet.breed} · ${pet.age}</p>
-    </div>
-    ${ownerPhone ? `<a href="tel:${ownerPhone}" style="display:block;margin:0 16px 12px;background:#F47B20;color:white;text-align:center;padding:16px;border-radius:14px;font-weight:700;font-size:1rem;text-decoration:none;">Call Owner</a>` : ''}
-    ${owner ? `<div style="padding:0 16px 12px;font-size:0.95rem;font-weight:700;color:#333;">Owner: ${[owner.first_name, owner.last_name].filter(Boolean).join(' ')}</div>` : ''}
-    <div style="background:white;border-radius:16px;margin:0 16px 12px;padding:16px;">
-      <p style="font-size:0.7rem;font-weight:700;color:#aaa;letter-spacing:0.08em;margin:0 0 12px;">PET INFORMATION</p>
-      ${pet.breed ? `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;"><span style="color:#aaa;font-size:0.82rem;">BREED</span><span style="font-weight:600;">${pet.breed}</span></div>` : ''}
-      ${pet.age ? `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;"><span style="color:#aaa;font-size:0.82rem;">AGE</span><span style="font-weight:600;">${pet.age}</span></div>` : ''}
-      ${pet.address ? `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;"><span style="color:#aaa;font-size:0.82rem;">ADDRESS</span><span style="font-weight:600;text-align:right;max-width:60%;">${pet.address}</span></div>` : ''}
-      ${pet.characteristics ? `<div style="display:flex;justify-content:space-between;padding:10px 0;"><span style="color:#aaa;font-size:0.82rem;">CHARACTERISTICS</span><span style="font-weight:600;text-align:right;max-width:60%;">${pet.characteristics}</span></div>` : ''}
-    </div>
-    ${(pet.allergies || pet.medications || pet.immunizations) ? `<div style="background:#fffbe6;border:1px solid #ffe58f;border-radius:16px;margin:0 16px 12px;padding:16px;"><p style="font-size:0.7rem;font-weight:700;color:#d48806;letter-spacing:0.08em;margin:0 0 10px;">MEDICAL ALERTS</p>${pet.allergies ? `<p style="color:#d48806;font-size:0.88rem;margin:0 0 6px;">• Allergies: ${pet.allergies}</p>` : ''}${pet.medications ? `<p style="color:#d48806;font-size:0.88rem;margin:0 0 6px;">• Medications: ${pet.medications}</p>` : ''}${pet.immunizations ? `<p style="color:#d48806;font-size:0.88rem;margin:0;">• Immunizations: ${pet.immunizations}</p>` : ''}</div>` : ''}
-    <p style="text-align:center;padding:16px;color:#ccc;font-size:0.75rem;">Powered by PawsQR</p>
-  </div>
-`;
 }
 
 async function init() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const qrParam = urlParams.get('qr');
-  if (qrParam) {
-    document.body.innerHTML = 'Loading...';
-    await prepareQrBaseUrl();
-    await showPublicPetProfile(qrParam);
-    return;
-  }
-
   // Restore session from storage on page load
   STATE.isAdmin = false;
   loadSession();
