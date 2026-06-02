@@ -1234,6 +1234,25 @@ button.facebook {
   color: #c95f0f;
 }
 
+#forgotPasswordState {
+  overflow-y: auto;
+  justify-content: flex-start;
+  padding-top: 80px;
+  padding-bottom: 40px;
+}
+
+#forgotPasswordState .login-form-card {
+  margin-top: 40px;
+  position: relative;
+  z-index: 10;
+}
+
+#forgotPasswordState .back-arrow-btn {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+}
+
 /* Ensure hidden always hides at all screen sizes */
 .hidden {
   display: none !important;
