@@ -758,12 +758,16 @@ async function renderAdminQrStatus() {
     return;
   }
 
-  const counts = { assigned: 0, available: 0, deactivated: 0, lost: 0 };
+  const counts = { assigned: 0, available: 0, lost: 0 };
   qrCodes.forEach(qr => {
-    if (qr.status === 'assigned') counts.assigned++;
-    else if (qr.status === 'available') counts.available++;
-    else if (qr.status === 'deactivated') counts.deactivated++;
-    else if (qr.status === 'lost') counts.lost++;
+    const assignedPet = pets.find(p => String(p.qr_code_id) === String(qr.id));
+    if (assignedPet && assignedPet.is_lost) {
+      counts.lost++;
+    } else if (assignedPet) {
+      counts.assigned++;
+    } else {
+      counts.available++;
+    }
   });
   const total = qrCodes.length;
 
@@ -771,19 +775,11 @@ async function renderAdminQrStatus() {
   const summaryEl = $('qrStatusSummary');
   if (summaryEl) {
     summaryEl.innerHTML = `
-      <div class="progress-bar-container">
-        <div class="progress-segment green" style="width:${(counts.assigned/total*100)||0}%"></div>
-        <div class="progress-segment orange" style="width:${(counts.available/total*100)||0}%"></div>
-        <div class="progress-segment gray" style="width:${(counts.deactivated/total*100)||0}%"></div>
-        <div class="progress-segment red" style="width:${(counts.lost/total*100)||0}%"></div>
-      </div>
-      <div class="legend">
-        <span>🟢 Active/Assigned: ${counts.assigned} (${total ? Math.round(counts.assigned/total*100) : 0}%)</span>
-        <span>🟠 Unassigned: ${counts.available} (${total ? Math.round(counts.available/total*100) : 0}%)</span>
-        <span>⚫ Deactivated: ${counts.deactivated} (${total ? Math.round(counts.deactivated/total*100) : 0}%)</span>
-        <span>🔴 Lost Status: ${counts.lost} (${total ? Math.round(counts.lost/total*100) : 0}%)</span>
-        <strong>Total Collars: ${total}</strong>
-      </div>
+      <h3>Assignment Breakdown</h3>
+      <p style="margin: 12px 0; font-weight: 600;">🟢 Active/Assigned: ${counts.assigned} (${total ? Math.round(counts.assigned/total*100) : 0}%)</p>
+      <p style="margin: 12px 0; font-weight: 600;">🟠 Unassigned: ${counts.available} (${total ? Math.round(counts.available/total*100) : 0}%)</p>
+      <p style="margin: 12px 0; font-weight: 600;">🔴 Lost Status: ${counts.lost} (${total ? Math.round(counts.lost/total*100) : 0}%)</p>
+      <p style="margin: 20px 0 0 0; font-weight: 700; font-size: 1.1rem;"><strong>Total Collars: ${total}</strong></p>
     `;
   }
 
@@ -801,13 +797,23 @@ async function renderAdminQrStatus() {
     const ownerName = owner ? [owner.first_name, owner.last_name].filter(Boolean).join(' ') : '—';
     const petName = assignedPet ? assignedPet.name : '—';
 
-    const statusColors = { assigned: 'green', available: 'orange', deactivated: 'gray', lost: 'red' };
-    const statusLabels = { assigned: 'Active', available: 'Unassigned', deactivated: 'Deactivated', lost: 'Lost Status' };
+    // Determine status based on assignment and is_lost flag
+    let status, statusColor;
+    if (assignedPet && assignedPet.is_lost) {
+      status = 'Lost Status';
+      statusColor = 'red';
+    } else if (assignedPet) {
+      status = 'Active';
+      statusColor = 'green';
+    } else {
+      status = 'Unassigned';
+      statusColor = 'orange';
+    }
 
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${qr.code}</td>
-      <td><span class="status-pill ${statusColors[qr.status] || 'gray'}">${statusLabels[qr.status] || qr.status}</span></td>
+      <td><span class="status-pill ${statusColor}">${status}</span></td>
       <td>${petName}</td>
       <td>${ownerName}</td>
       <td>${scanCount}</td>
