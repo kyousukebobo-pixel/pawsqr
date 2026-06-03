@@ -35,7 +35,7 @@ const GOOGLE_CLIENT_ID = '540931981374-205a6qbbrte6lhulq32g5gcqt1adop3c.apps.goo
 const EMAILJS_USER_ID = 'lklD_aOveFRq-wSUU';
 const EMAILJS_SERVICE_ID = 'service_m2bq1cq';
 const EMAILJS_TEMPLATE_ID = 'template_oogzqdb';
-const EMAILJS_VERIFICATION_TEMPLATE_ID = 'template_0xzfwh3';
+const EMAILJS_VERIFICATION_TEMPLATE_ID = 'template_diemj95';
 
 function initEmailJs() {
   try {
