@@ -560,24 +560,8 @@ async function renderUserDashboard() {
   const pets = await loadData('pets');
   const qrCodes = await loadData('qr_codes');
   const myPets = pets.filter((pet) => pet.owner_id === STATE.currentUser.id);
-  const myCodes = qrCodes.filter((qr) => qr.status === 'assigned' && myPets.some((pet) => pet.qr_code_id === qr.id));
-  const userQrList = $('userQrList');
   const petCardList = $('petCardList');
-  userQrList.innerHTML = '';
   petCardList.innerHTML = '';
-
-  if (!myCodes.length) {
-    userQrList.innerHTML = '<p>No assigned collars yet. Register a pet after scanning a QR code.</p>';
-  }
-
-  myCodes.forEach((qr) => {
-    const container = document.createElement('div');
-    createQRCodeElement(container, qr.code, `Collar ${qr.label || qr.id}`);
-    const notice = document.createElement('small');
-    notice.textContent = 'Assigned to your pet';
-    container.querySelector('button').before(notice);
-    userQrList.appendChild(container);
-  });
 
   if (!myPets.length) {
     petCardList.innerHTML = '<p>You have no registered pets yet.</p>';
@@ -596,7 +580,7 @@ async function renderUserDashboard() {
     const title = document.createElement('h4');
     title.textContent = pet.name;
     const details = document.createElement('p');
-    details.innerHTML = `<strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
+    details.innerHTML = `<strong>Type:</strong> ${pet.type || pet.pet_type || 'N/A'}<br><strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
     const label = document.createElement('small');
     const code = qrCodes.find((qr) => qr.id === pet.qr_code_id);
     label.textContent = `Collar: ${code ? code.code : 'Not assigned'}`;
@@ -689,7 +673,7 @@ async function renderAdminRegisteredPets(recentOnly = false) {
     title.textContent = pet.name;
     const owner = users.find(u => u.id === pet.owner_id);
     const details = document.createElement('p');
-    details.innerHTML = `<strong>Owner:</strong> ${owner ? (getFullName(owner) || owner.email) : 'Unknown'}<br><strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
+    details.innerHTML = `<strong>Owner:</strong> ${owner ? (getFullName(owner) || owner.email) : 'Unknown'}<br><strong>Type:</strong> ${pet.type || pet.pet_type || 'N/A'}<br><strong>Breed:</strong> ${pet.breed}<br><strong>Age:</strong> ${pet.age}`;
     card.append(image, title, details);
     container.appendChild(card);
   });
@@ -1402,8 +1386,9 @@ async function beginPetRegistration(editPet = null, preVerifiedQr = null) {
     $('editingPetId').value = editPet.id;
     $('petName').value = editPet.name;
     $('petAge').value = editPet.age;
-    if (editPet.pet_type) {
-      const radio = document.querySelector(`input[name="petType"][value="${editPet.pet_type}"]`);
+    const petTypeValue = editPet.type || editPet.pet_type;
+    if (petTypeValue) {
+      const radio = document.querySelector(`input[name="petType"][value="${petTypeValue}"]`);
       if (radio) {
         radio.checked = true;
         radio.dispatchEvent(new Event('change'));
@@ -1681,6 +1666,7 @@ async function renderFinderResult(rawCode) {
   result.innerHTML = `
     <h3>${pet.name}</h3>
     <img src="${pet.photo}" alt="${pet.name}" style="width:100%;border-radius:16px;margin-bottom:12px;max-height:260px;object-fit:cover;" />
+    <p><strong>Type:</strong> ${pet.type || pet.pet_type || 'N/A'}</p>
     <p><strong>Breed:</strong> ${pet.breed}</p>
     <p><strong>Age:</strong> ${pet.age}</p>
     <p><strong>Characteristics:</strong> ${pet.characteristics}</p>
@@ -1726,6 +1712,7 @@ async function submitPetForm(event) {
   const petCharacteristics = $('petCharacteristics').value.trim();
   const petAllergies = $('petAllergies').value.trim();
   const petMedications = $('petMedications').value.trim();
+  const petType = document.querySelector('input[name="petType"]:checked');
   const checked = Array.from(document.querySelectorAll('#immunizationCheckboxes input:checked')).map(cb => cb.value);
   const petImmunizations = checked.join(', ') || 'None';
   const editingId = $('editingPetId').value;
@@ -1759,7 +1746,8 @@ async function submitPetForm(event) {
     await updateData('pets', editingId, {
       name: petName,
       age: petAge,
-      pet_type: document.querySelector('input[name="petType"]:checked')?.value || '',
+      type: petType ? petType.value : 'N/A',
+      pet_type: petType ? petType.value : '',
       breed: petBreed,
       photo: petPhoto,
       characteristics: petCharacteristics,
@@ -1781,7 +1769,8 @@ async function submitPetForm(event) {
       owner_id: STATE.currentUser.id,
       name: petName,
       age: petAge,
-      pet_type: document.querySelector('input[name="petType"]:checked')?.value || '',
+      type: petType ? petType.value : 'N/A',
+      pet_type: petType ? petType.value : '',
       breed: petBreed,
       photo: petPhoto,
       characteristics: petCharacteristics,
