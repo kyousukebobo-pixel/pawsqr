@@ -9,6 +9,8 @@ const STATE = {
 
 let forgotPasswordVerificationCode = null;
 let forgotPasswordVerifiedEmail = null;
+let forgotPasswordCodeExpiry = null;
+let forgotPasswordCountdownInterval = null;
 
 const MASTER_ADMIN = {
   first_name: 'Master',
@@ -1906,6 +1908,34 @@ async function sendVerificationCode() {
     // generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     forgotPasswordVerificationCode = code;
+    forgotPasswordCodeExpiry = Date.now() + 5 * 60 * 1000;
+
+    if (forgotPasswordCountdownInterval) {
+      clearInterval(forgotPasswordCountdownInterval);
+      forgotPasswordCountdownInterval = null;
+    }
+
+    const countdownEl = $('codeCountdown');
+    const updateCountdown = () => {
+      const remaining = forgotPasswordCodeExpiry - Date.now();
+      if (remaining <= 0) {
+        if (forgotPasswordCountdownInterval) {
+          clearInterval(forgotPasswordCountdownInterval);
+          forgotPasswordCountdownInterval = null;
+        }
+        forgotPasswordVerificationCode = null;
+        forgotPasswordCodeExpiry = null;
+        if (countdownEl) countdownEl.textContent = 'Code expired. Request a new code.';
+        return;
+      }
+
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      if (countdownEl) countdownEl.textContent = `Code expires in ${minutes}:${seconds.toString().padStart(2, '0')}`;
+    };
+
+    updateCountdown();
+    forgotPasswordCountdownInterval = setInterval(updateCountdown, 1000);
 
     // send via EmailJS REST endpoint (public key not required for service/template sends)
     const payload = {
@@ -1945,12 +1975,33 @@ async function sendVerificationCode() {
 function verifyCode() {
   const entered = $('forgotVerificationCode') ? $('forgotVerificationCode').value.trim() : '';
   if (!entered) { alert('Please enter the verification code.'); return; }
-  if (!forgotPasswordVerificationCode) { alert('No code sent. Please request a verification code.'); return; }
+
+  if (!forgotPasswordCodeExpiry || Date.now() > forgotPasswordCodeExpiry) {
+    alert('Code has expired. Please request a new one.');
+    forgotPasswordVerificationCode = null;
+    forgotPasswordCodeExpiry = null;
+    if (forgotPasswordCountdownInterval) {
+      clearInterval(forgotPasswordCountdownInterval);
+      forgotPasswordCountdownInterval = null;
+    }
+    if ($('forgotVerificationCode')) $('forgotVerificationCode').value = '';
+    const step2 = $('forgotStep2');
+    const step1 = $('forgotStep1');
+    if (step2) step2.classList.add('hidden');
+    if (step1) step1.classList.remove('hidden');
+    return;
+  }
+
   if (entered !== forgotPasswordVerificationCode) { alert('Invalid verification code.'); return; }
 
   // code verified — lock in the email and proceed to reset
+  if (forgotPasswordCountdownInterval) {
+    clearInterval(forgotPasswordCountdownInterval);
+    forgotPasswordCountdownInterval = null;
+  }
   forgotPasswordVerifiedEmail = $('forgotEmail') ? $('forgotEmail').value.trim() : null;
   forgotPasswordVerificationCode = null;
+  forgotPasswordCodeExpiry = null;
   const step2 = $('forgotStep2');
   const step3 = $('forgotStep3');
   if (step2) step2.classList.add('hidden');
@@ -2211,7 +2262,15 @@ function attachEvents() {
   if (backToLoginLink) backToLoginLink.addEventListener('click', (e) => { e.preventDefault(); toggleLoginState('form'); });
   if (btnSendVerificationCode) btnSendVerificationCode.addEventListener('click', sendVerificationCode);
   if (btnVerifyCode) btnVerifyCode.addEventListener('click', (e) => { e.preventDefault(); verifyCode(); });
-  if (resendCode) resendCode.addEventListener('click', (e) => { e.preventDefault(); sendVerificationCode(); });
+  if (resendCode) resendCode.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (forgotPasswordCountdownInterval) {
+      clearInterval(forgotPasswordCountdownInterval);
+      forgotPasswordCountdownInterval = null;
+    }
+    if ($('forgotVerificationCode')) $('forgotVerificationCode').value = '';
+    sendVerificationCode();
+  });
   if (btnResetPassword) btnResetPassword.addEventListener('click', resetPassword);
   if (toggleForgotNew) toggleForgotNew.addEventListener('click', () => {
     const input = $('forgotNewPassword');
