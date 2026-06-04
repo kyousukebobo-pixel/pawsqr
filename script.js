@@ -1908,7 +1908,7 @@ async function sendVerificationCode() {
     // generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     forgotPasswordVerificationCode = code;
-    forgotPasswordCodeExpiry = Date.now() + 5 * 60 * 1000;
+    forgotPasswordCodeExpiry = Date.now() + 10 * 60 * 1000;
 
     if (forgotPasswordCountdownInterval) {
       clearInterval(forgotPasswordCountdownInterval);
