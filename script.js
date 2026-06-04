@@ -25,6 +25,13 @@ const SUPABASE_URL = 'https://sbkkdtfdhvikhfdbhsbx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNia2tkdGZkaHZpa2hmZGJoc2J4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTk3NDUsImV4cCI6MjA5NTE3NTc0NX0.E-v0T9hbvRMWBOSjXOgHKSYRE3RgPnvcEtkQ9GJC1gA';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+async function hashPassword(password) {
+  const msgBuffer = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // Third-party Provider IDs (set these in production)
 // Google OAuth2 Configuration
 // Replace with your actual Google Client ID from Google Cloud Console
@@ -1231,6 +1238,8 @@ async function login(email, password) {
     return;
   }
 
+  const hashedPassword = await hashPassword(password);
+
   const { data, error } = await db.from('users').select('*').eq('email', email).single();
 
   if (error || !data) {
@@ -1238,7 +1247,7 @@ async function login(email, password) {
     return;
   }
 
-  if (data.password !== password) {
+  if (data.password !== hashedPassword) {
     alert('Incorrect password.');
     return;
   }
@@ -1263,6 +1272,8 @@ async function registerUser() {
     return;
   }
 
+  const hashedPassword = await hashPassword(password);
+
   const { data, error } = await db.from('users').insert([{
     first_name: firstName,
     middle_name: middleName,
@@ -1270,7 +1281,7 @@ async function registerUser() {
     suffix: suffix,
     email: email,
     phone: phone,
-    password: password,
+    password: hashedPassword,
     role: 'user',
     provider: 'local'
   }]).select().single();
@@ -1861,7 +1872,9 @@ async function resetPassword() {
       return;
     }
 
-    const { data, error: updateError } = await db.from('users').update({ password: newPassword }).eq('id', user.id).select().single();
+    const hashedPassword = await hashPassword(newPassword);
+
+    const { data, error: updateError } = await db.from('users').update({ password: hashedPassword }).eq('id', user.id).select().single();
     if (updateError) {
       console.error('Error updating password:', updateError);
       alert('Failed to reset password. Please try again later.');
