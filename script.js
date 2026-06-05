@@ -940,25 +940,22 @@ function handleGoogleSignInResponse(response) {
           }
         } else {
           const firstName = prompt('Enter your First Name:');
-          if (!firstName) {
-            showMessage('First name is required.');
-            return;
-          }
+          if (firstName === null) return;
+          if (!firstName.trim()) { showMessage('First name cannot be empty.'); return; }
 
           const lastName = prompt('Enter your Last Name:');
-          if (!lastName) {
-            showMessage('Last name is required.');
-            return;
-          }
+          if (lastName === null) return;
+          if (!lastName.trim()) { showMessage('Last name cannot be empty.'); return; }
 
-          const middleName = prompt('Enter your Middle Name (optional):') || '';
-          const suffix = prompt('Enter your Suffix (optional, e.g. Jr., Sr.):') || '';
+          const middleName = prompt('Enter your Middle Name (optional):');
+          if (middleName === null) return;
+
+          const suffix = prompt('Enter your Suffix (optional, e.g. Jr., Sr.):');
+          if (suffix === null) return;
 
           const phone = prompt('Enter your Phone Number:');
-          if (!phone) {
-            showMessage('Phone number is required.');
-            return;
-          }
+          if (phone === null) return;
+          if (!phone.trim()) { showMessage('Phone number cannot be empty.'); return; }
 
           const { data: newUser, error } = await db.from('users').insert([{
             first_name: firstName.trim(),
