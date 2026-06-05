@@ -1695,69 +1695,75 @@ async function renderFinderResult(rawCode) {
   }
   const pet = pets.find((p) => p.id === qrCode.pet_id);
   const owner = users.find((u) => u.id === pet.owner_id);
-  showView('finderScreen');
-  const result = $('finderResult');
-  result.innerHTML = `
-    ${pet.is_lost ? `
-    <div style="background: #fff5f5; border: 2px solid #e63946; border-radius: 16px; padding: 16px; margin-bottom: 16px; text-align: center;">
-      <div style="color: #e63946; font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">🚨 Lost Pet Alert</div>
-      <div style="color: #e63946; font-size: 1rem; font-weight: 600;">This pet is reported lost — Please contact the owner immediately, they are waiting for your call.</div>
-    </div>
-    ` : ''}
-    
-    <div style="display: flex; justify-content: center; margin-bottom: 24px;">
-      <img src="${pet.photo}" alt="${pet.name}" style="width: 140px; height: 140px; border-radius: 50%; object-fit: cover; box-shadow: 0 8px 24px rgba(180, 80, 0, 0.15);" onclick="openLightbox(this.src)" />
-    </div>
-    
-    <h2 style="text-align: center; margin: 0 0 8px 0; font-size: 1.8rem; font-weight: 900; color: #1a1a1a;">${pet.name}</h2>
-    
-    <p style="text-align: center; margin: 0 0 20px 0; font-size: 1rem; color: #7a4f2e; font-weight: 600;">${pet.breed} · ${pet.age}</p>
-    
-    <a href="tel:${owner.phone}" style="display: block; width: 100%; background: #F47B20; color: white; text-decoration: none; padding: 14px 18px; border-radius: 20px; text-align: center; font-weight: 700; font-size: 1rem; margin-bottom: 20px; cursor: pointer; transition: background 0.3s ease;" onmouseover="this.style.background='#c95f0f'" onmouseout="this.style.background='#F47B20';">Call Owner</a>
-    
-    <div style="background: #ffffff; border-radius: 18px; padding: 20px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(180, 80, 0, 0.08);">
-      <h3 style="margin: 0 0 16px 0; font-size: 0.9rem; font-weight: 900; text-transform: uppercase; color: #F47B20; letter-spacing: 0.5px;">Pet Information</h3>
-      <div style="display: grid; gap: 12px;">
-        <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0;">
-          <span style="color: #7a4f2e; font-weight: 600;">Breed</span>
-          <span style="color: #1a1a1a; font-weight: 700;">${pet.breed || 'N/A'}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0;">
-          <span style="color: #7a4f2e; font-weight: 600;">Age</span>
-          <span style="color: #1a1a1a; font-weight: 700;">${pet.age || 'N/A'}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0;">
-          <span style="color: #7a4f2e; font-weight: 600;">Type</span>
-          <span style="color: #1a1a1a; font-weight: 700;">${pet.type || pet.pet_type || 'N/A'}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between;">
-          <span style="color: #7a4f2e; font-weight: 600;">Characteristics</span>
-          <span style="color: #1a1a1a; font-weight: 700; text-align: right;">${pet.characteristics || 'N/A'}</span>
+  showView('qrProfileScreen');
+  const content = $('qrProfileContent');
+  content.innerHTML = `
+    <div style="max-width: 100%; padding: 0; margin: 0;">
+      ${pet.is_lost ? `
+      <div style="background: #fff5f5; border: 2px solid #e63946; border-radius: 16px; padding: 16px; margin-bottom: 16px; text-align: center;">
+        <div style="color: #e63946; font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">🚨 Lost Pet Alert</div>
+        <div style="color: #e63946; font-size: 1rem; font-weight: 600;">This pet is reported lost — Please contact the owner immediately, they are waiting for your call.</div>
+      </div>
+      ` : ''}
+      
+      <div style="display: flex; justify-content: center; margin-bottom: 24px;">
+        <img src="${pet.photo}" alt="${pet.name}" style="width: 140px; height: 140px; border-radius: 50%; object-fit: cover; box-shadow: 0 8px 24px rgba(180, 80, 0, 0.15);" onclick="openLightbox(this.src)" />
+      </div>
+      
+      <h2 style="text-align: center; margin: 0 0 8px 0; font-size: 1.8rem; font-weight: 900; color: #1a1a1a;">${pet.name}</h2>
+      
+      <p style="text-align: center; margin: 0 0 20px 0; font-size: 1rem; color: #7a4f2e; font-weight: 600;">${pet.breed} · ${pet.age}</p>
+      
+      <a href="tel:${owner.phone}" style="display: block; width: 100%; background: #F47B20; color: white; text-decoration: none; padding: 14px 18px; border-radius: 20px; text-align: center; font-weight: 700; font-size: 1rem; margin-bottom: 20px; cursor: pointer; transition: background 0.3s ease;" onmouseover="this.style.background='#c95f0f'" onmouseout="this.style.background='#F47B20';">Call Owner</a>
+      
+      <div style="background: #ffffff; border-radius: 18px; padding: 20px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(180, 80, 0, 0.08);">
+        <h3 style="margin: 0 0 16px 0; font-size: 0.9rem; font-weight: 900; text-transform: uppercase; color: #F47B20; letter-spacing: 0.5px;">Pet Information</h3>
+        <div style="display: grid; gap: 12px;">
+          <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0;">
+            <span style="color: #7a4f2e; font-weight: 600;">Breed</span>
+            <span style="color: #1a1a1a; font-weight: 700;">${pet.breed || 'N/A'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0;">
+            <span style="color: #7a4f2e; font-weight: 600;">Age</span>
+            <span style="color: #1a1a1a; font-weight: 700;">${pet.age || 'N/A'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0;">
+            <span style="color: #7a4f2e; font-weight: 600;">Type</span>
+            <span style="color: #1a1a1a; font-weight: 700;">${pet.type || pet.pet_type || 'N/A'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0;">
+            <span style="color: #7a4f2e; font-weight: 600;">Characteristics</span>
+            <span style="color: #1a1a1a; font-weight: 700; text-align: right;">${pet.characteristics || 'N/A'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #7a4f2e; font-weight: 600;">Address</span>
+            <span style="color: #1a1a1a; font-weight: 700; text-align: right;">${owner.address || 'N/A'}</span>
+          </div>
         </div>
       </div>
-    </div>
-    
-    <div style="background: #FFF8E7; border-radius: 18px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(180, 80, 0, 0.08);">
-      <h3 style="margin: 0 0 16px 0; font-size: 0.9rem; font-weight: 900; text-transform: uppercase; color: #e67e22; letter-spacing: 0.5px;">⚠️ Medical Alerts</h3>
-      <div style="display: grid; gap: 12px;">
-        <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid rgba(230, 126, 34, 0.2);">
-          <span style="color: #7a4f2e; font-weight: 600;">Allergies</span>
-          <span style="color: #1a1a1a; font-weight: 700;">${pet.allergies || 'None'}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid rgba(230, 126, 34, 0.2);">
-          <span style="color: #7a4f2e; font-weight: 600;">Medications</span>
-          <span style="color: #1a1a1a; font-weight: 700;">${pet.medications || 'None'}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between;">
-          <span style="color: #7a4f2e; font-weight: 600;">Immunizations</span>
-          <span style="color: #1a1a1a; font-weight: 700;">${pet.immunizations || 'Unspecified'}</span>
+      
+      <div style="background: #FFF8E7; border-radius: 18px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(180, 80, 0, 0.08);">
+        <h3 style="margin: 0 0 16px 0; font-size: 0.9rem; font-weight: 900; text-transform: uppercase; color: #e67e22; letter-spacing: 0.5px;">⚠️ Medical Alerts</h3>
+        <div style="display: grid; gap: 12px;">
+          <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid rgba(230, 126, 34, 0.2);">
+            <span style="color: #7a4f2e; font-weight: 600;">Allergies</span>
+            <span style="color: #1a1a1a; font-weight: 700;">${pet.allergies || 'None'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid rgba(230, 126, 34, 0.2);">
+            <span style="color: #7a4f2e; font-weight: 600;">Medications</span>
+            <span style="color: #1a1a1a; font-weight: 700;">${pet.medications || 'None'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #7a4f2e; font-weight: 600;">Immunizations</span>
+            <span style="color: #1a1a1a; font-weight: 700;">${pet.immunizations || 'Unspecified'}</span>
+          </div>
         </div>
       </div>
+      
+      <a href="mailto:${owner.email}?subject=Found%20${encodeURIComponent(pet.name)}" style="display: block; width: 100%; background: #F5D97E; color: #1a1a1a; text-decoration: none; padding: 12px 18px; border-radius: 20px; text-align: center; font-weight: 700; font-size: 1rem; margin-bottom: 16px; cursor: pointer; transition: background 0.3s ease;" onmouseover="this.style.background='#e8c55a'" onmouseout="this.style.background='#F5D97E';">Email Owner</a>
+      
+      ${owner ? `<p style="text-align: center; margin: 0; font-weight: 700; color: #1a1a1a; font-size: 0.95rem;">Owner: ${[owner.first_name, owner.last_name].filter(Boolean).join(' ')}</p>` : ''}
     </div>
-    
-    <a href="mailto:${owner.email}?subject=Found%20${encodeURIComponent(pet.name)}" style="display: block; width: 100%; background: #F5D97E; color: #1a1a1a; text-decoration: none; padding: 12px 18px; border-radius: 20px; text-align: center; font-weight: 700; font-size: 1rem; margin-bottom: 16px; cursor: pointer; transition: background 0.3s ease;" onmouseover="this.style.background='#e8c55a'" onmouseout="this.style.background='#F5D97E';">Email Owner</a>
-    
-    ${owner ? `<p style="text-align: center; margin: 0; font-weight: 700; color: #1a1a1a; font-size: 0.95rem;">Owner: ${[owner.first_name, owner.last_name].filter(Boolean).join(' ')}</p>` : ''}
   `;
 
   // Save a scan record to Supabase (Finder lookup)
