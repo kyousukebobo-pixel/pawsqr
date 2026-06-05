@@ -5,6 +5,13 @@ const STATE = {
   finderScanner: null,
   petScanner: null,
   loginScanner: null,
+  // Data cache for performance
+  dataCache: {
+    qr_codes: null,
+    pets: null,
+    users: null,
+    lastFetch: {}
+  }
 };
 
 let forgotPasswordVerificationCode = null;
@@ -109,10 +116,45 @@ async function saveData(table, record) {
       console.error(`Error saving to ${table}:`, error);
       return null;
     }
+    // Clear cache for this table when data changes
+    clearDataCache(table);
     return data ? data[0] : null;
   } catch (err) {
     console.error(`Error saving to ${table}:`, err);
     return null;
+  }
+}
+
+// Get cached data or fetch fresh (with 5-minute cache expiry)
+async function getCachedData(table) {
+  const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+  const now = Date.now();
+  const lastFetch = STATE.dataCache.lastFetch[table] || 0;
+  
+  // Return cached data if still fresh
+  if (STATE.dataCache[table] && (now - lastFetch < CACHE_DURATION_MS)) {
+    return STATE.dataCache[table];
+  }
+  
+  // Fetch fresh data
+  const data = await loadData(table);
+  STATE.dataCache[table] = data;
+  STATE.dataCache.lastFetch[table] = now;
+  return data;
+}
+
+// Clear data cache (call when data is updated)
+function clearDataCache(table) {
+  if (table) {
+    STATE.dataCache[table] = null;
+    STATE.dataCache.lastFetch[table] = 0;
+  } else {
+    STATE.dataCache = {
+      qr_codes: null,
+      pets: null,
+      users: null,
+      lastFetch: {}
+    };
   }
 }
 
@@ -123,6 +165,8 @@ async function updateData(table, id, updates) {
       console.error(`Error updating ${table}:`, error);
       return null;
     }
+    // Clear cache for this table when data changes
+    clearDataCache(table);
     return data ? data[0] : null;
   } catch (err) {
     console.error(`Error updating ${table}:`, err);
@@ -136,6 +180,8 @@ async function deleteData(table, id) {
     if (error) {
       console.error(`Error deleting from ${table}:`, error);
       return false;
+      // Clear cache for this table when data changes
+      clearDataCache(table);
     }
     return true;
   } catch (err) {
@@ -1182,7 +1228,7 @@ async function routeToView() {
   // This is public - works whether user is logged in or not
   if (deepQr) {
     const rawCode = normalizeQrText(deepQr);
-    const qrCodes = await loadData('qr_codes');
+    const qrCodes = await getCachedData('qr_codes');
     const qrCode = qrCodes.find((q) => q.code === rawCode);
     
     if (!qrCode) {
@@ -1678,9 +1724,12 @@ function handleFinderLookup() {
 }
 
 async function renderFinderResult(rawCode) {
-  const qrCodes = await loadData('qr_codes');
-  const pets = await loadData('pets');
-  const users = await loadData('users');
+  // Load all data in parallel for better performance
+  const [qrCodes, pets, users] = await Promise.all([
+    getCachedData('qr_codes'),
+    getCachedData('pets'),
+    getCachedData('users')
+  ]);
   
   const qrCode = qrCodes.find((q) => q.code === rawCode);
   if (!qrCode || !qrCode.pet_id) {
