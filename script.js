@@ -1655,6 +1655,9 @@ async function handlePetQrScan(decodedText) {
 }
 
 function handleFinderQrScanned(decodedText, scannerInstance, container) {
+  const scannedValue = decodedText ? decodedText.trim() : '';
+  console.log('Scanned QR value:', decodedText, 'trimmed:', scannedValue);
+  
   // Stop the scanner immediately
   scannerInstance.stop()
     .then(() => {
@@ -1662,8 +1665,12 @@ function handleFinderQrScanned(decodedText, scannerInstance, container) {
       STATE.finderScanner = null;
       container.classList.add('hidden');
       
+      if (!scannedValue) {
+        console.error('Finder scanner returned an empty or malformed QR value.');
+        return;
+      }
       // Set the input and lookup
-      $('finderQrInput').value = decodedText;
+      $('finderQrInput').value = scannedValue;
       handleFinderLookup();
     })
     .catch(() => {
@@ -1671,7 +1678,11 @@ function handleFinderQrScanned(decodedText, scannerInstance, container) {
       STATE.finderScanner = null;
       container.classList.add('hidden');
       
-      $('finderQrInput').value = decodedText;
+      if (!scannedValue) {
+        console.error('Finder scanner returned an empty or malformed QR value.');
+        return;
+      }
+      $('finderQrInput').value = scannedValue;
       handleFinderLookup();
     });
 }
