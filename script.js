@@ -70,6 +70,22 @@ function $(id) {
   return document.getElementById(id);
 }
 
+function openLightbox(src) {
+  const lightbox = $('imageLightbox');
+  const img = $('lightboxImage');
+  if (!lightbox || !img) return;
+  img.src = src;
+  lightbox.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  const lightbox = $('imageLightbox');
+  if (!lightbox) return;
+  lightbox.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
 // Supabase data access functions
 async function loadData(table) {
   try {
@@ -577,6 +593,8 @@ async function renderUserDashboard() {
     const image = document.createElement('img');
     image.src = pet.photo;
     image.alt = pet.name;
+    image.style.cursor = 'pointer';
+    image.addEventListener('click', () => openLightbox(image.src));
     const title = document.createElement('h4');
     title.textContent = pet.name;
     const details = document.createElement('p');
@@ -669,6 +687,8 @@ async function renderAdminRegisteredPets(recentOnly = false) {
     const image = document.createElement('img');
     image.src = pet.photo;
     image.alt = pet.name;
+    image.style.cursor = 'pointer';
+    image.addEventListener('click', () => openLightbox(image.src));
     const title = document.createElement('h4');
     title.textContent = pet.name;
     const owner = users.find(u => u.id === pet.owner_id);
@@ -1665,7 +1685,7 @@ async function renderFinderResult(rawCode) {
   const result = $('finderResult');
   result.innerHTML = `
     <h3>${pet.name}</h3>
-    <img src="${pet.photo}" alt="${pet.name}" style="width:100%;border-radius:16px;margin-bottom:12px;max-height:260px;object-fit:cover;" />
+    <img src="${pet.photo}" alt="${pet.name}" style="width:100%;border-radius:16px;margin-bottom:12px;max-height:260px;object-fit:cover;cursor:pointer;" />
     <p><strong>Type:</strong> ${pet.type || pet.pet_type || 'N/A'}</p>
     <p><strong>Breed:</strong> ${pet.breed}</p>
     <p><strong>Age:</strong> ${pet.age}</p>
@@ -1677,6 +1697,11 @@ async function renderFinderResult(rawCode) {
     </div>
     ${owner ? `<p style="margin-top:16px;font-weight:600;">Owner: ${[owner.first_name, owner.last_name].filter(Boolean).join(' ')}</p>` : ''}
   `;
+  const finderImage = result.querySelector('img');
+  if (finderImage) {
+    finderImage.addEventListener('click', () => openLightbox(finderImage.src));
+  }
+
   // Save a scan record to Supabase (Finder lookup)
   try {
     const { error: scanError } = await db.from('scan_history').insert([{
@@ -2052,6 +2077,10 @@ function toggleLoginState(state) {
 }
 
 function attachEvents() {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLightbox();
+  });
+
   // Login state toggle buttons
   const loginToggleButton = $('loginToggleButton');
   const backToWelcome = $('backToWelcome');
