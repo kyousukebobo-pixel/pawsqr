@@ -939,28 +939,45 @@ function handleGoogleSignInResponse(response) {
             await routeAfterLogin();
           }
         } else {
-          // New user: prompt for phone number, then create account
-          const phone = prompt('Welcome! Please enter your phone number for owner contact:');
-          if (!phone) {
-            showMessage('Phone number is required to create an account.');
+          const firstName = prompt('Enter your First Name:');
+          if (!firstName) {
+            showMessage('First name is required.');
             return;
           }
 
-          const fakePassword = `google-${googleUserId}`;
-          const { first_name, last_name } = splitFullName(name);
-          const newUser = {
-            first_name,
-            last_name,
+          const lastName = prompt('Enter your Last Name:');
+          if (!lastName) {
+            showMessage('Last name is required.');
+            return;
+          }
+
+          const middleName = prompt('Enter your Middle Name (optional):') || '';
+          const suffix = prompt('Enter your Suffix (optional, e.g. Jr., Sr.):') || '';
+
+          const phone = prompt('Enter your Phone Number:');
+          if (!phone) {
+            showMessage('Phone number is required.');
+            return;
+          }
+
+          const { data: newUser, error } = await db.from('users').insert([{
+            first_name: firstName.trim(),
+            middle_name: middleName.trim(),
+            last_name: lastName.trim(),
+            suffix: suffix.trim(),
             email: email.toLowerCase(),
-            phone,
-            password: fakePassword,
+            phone: phone.trim(),
+            password: `google-${googleUserId}`,
             role: 'user',
             provider: 'google',
-            picture,
-          };
+          }]).select().single();
 
-          const savedUser = await saveData('users', newUser);
-          saveCurrentUser(savedUser);
+          if (error || !newUser) {
+            showMessage('Failed to create account. Please try again.');
+            return;
+          }
+
+          saveCurrentUser(newUser);
           setNavigation();
           await routeAfterLogin();
         }
