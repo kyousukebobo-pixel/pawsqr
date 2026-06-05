@@ -1101,7 +1101,7 @@ async function registerSocialUser(provider) {
 
   const existing = await getUserByEmail(email);
   if (existing) {
-    STATE.currentUser = existing;
+    saveCurrentUser(existing);
     setNavigation();
     if (existing.role === 'admin') {
       location.hash = 'admin';
@@ -1124,7 +1124,7 @@ async function registerSocialUser(provider) {
 function saveCurrentUser(user) {
   STATE.currentUser = user;
   try {
-    sessionStorage.setItem('pawsqr_session', JSON.stringify(user));
+    localStorage.setItem('currentUser', JSON.stringify(user));
   } catch (e) {
     console.warn('Unable to save session:', e);
   }
@@ -1132,14 +1132,14 @@ function saveCurrentUser(user) {
 
 function loadSession() {
   try {
-    const raw = sessionStorage.getItem('pawsqr_session');
+    const raw = localStorage.getItem('currentUser');
     if (raw) {
       const user = JSON.parse(raw);
       STATE.currentUser = user;
     }
   } catch (e) {
     console.warn('Unable to load session:', e);
-    sessionStorage.removeItem('pawsqr_session');
+    localStorage.removeItem('currentUser');
   }
 }
 
@@ -1182,7 +1182,7 @@ async function seedDemoData(user) {
 async function autoLoginFromHash() {
   const hash = location.hash.replace('#', '');
   if (!STATE.currentUser && hash === 'admin') {
-    STATE.currentUser = MASTER_ADMIN;
+    saveCurrentUser(MASTER_ADMIN);
     await seedDemoData(null);
     return;
   }
@@ -1202,7 +1202,7 @@ async function autoLoginFromHash() {
       const savedUser = await saveData('users', newUserData);
       user = savedUser;
     }
-    STATE.currentUser = user;
+    saveCurrentUser(user);
     await seedDemoData(user);
   }
 }
@@ -1386,6 +1386,7 @@ function handleLogout() {
   STATE.pendingQrCode = null;
   STATE.currentQrVerification = null;
   try {
+    localStorage.removeItem('currentUser');
     sessionStorage.removeItem('pawsqr_session');
   } catch (e) {
     console.warn('Unable to clear session:', e);
@@ -2462,7 +2463,16 @@ async function init() {
   await prepareQrBaseUrl();
   initGoogleSignIn();
   attachEvents();
-  await routeToView();
+
+  const queryParams = new URLSearchParams(window.location.search);
+  const deepQr = queryParams.get('qr');
+
+  if (STATE.currentUser && !deepQr) {
+    await routeAfterLogin();
+  } else {
+    await routeToView();
+  }
+
   window.addEventListener('hashchange', () => routeToView());
 }
 
