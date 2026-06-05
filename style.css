@@ -1291,8 +1291,8 @@ button.facebook {
   display: none !important;
 }
 
-/* QR Profile Screen - Full Screen Pet Profile View */
-#qrProfileScreen {
+/* Pet Profile Screen - Full Screen Pet Profile View */
+#petProfileScreen {
   background: linear-gradient(135deg, #F47B20 0%, #F5A623 100%);
   min-height: 100vh;
   display: flex;
@@ -1301,7 +1301,7 @@ button.facebook {
   padding: 24px;
 }
 
-.qr-profile-container {
+.pet-profile-container {
   background: #ffffff;
   border-radius: 24px;
   box-shadow: 0 8px 32px rgba(180, 80, 0, 0.18);

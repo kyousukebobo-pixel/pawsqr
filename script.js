@@ -1695,8 +1695,8 @@ async function renderFinderResult(rawCode) {
   }
   const pet = pets.find((p) => p.id === qrCode.pet_id);
   const owner = users.find((u) => u.id === pet.owner_id);
-  showView('qrProfileScreen');
-  const content = $('qrProfileContent');
+  showView('petProfileScreen');
+  const content = $('petProfileContent');
   content.innerHTML = `
     <div style="max-width: 100%; padding: 0; margin: 0;">
       ${pet.is_lost ? `
@@ -1765,6 +1765,22 @@ async function renderFinderResult(rawCode) {
       ${owner ? `<p style="text-align: center; margin: 0; font-weight: 700; color: #1a1a1a; font-size: 0.95rem;">Owner: ${[owner.first_name, owner.last_name].filter(Boolean).join(' ')}</p>` : ''}
     </div>
   `;
+
+  // Add Back button with conditional routing
+  const backBtn = document.createElement('button');
+  backBtn.className = 'secondary';
+  backBtn.textContent = 'Back';
+  backBtn.style.marginTop = '20px';
+  backBtn.style.width = '100%';
+  backBtn.onclick = async () => {
+    if (STATE.currentUser) {
+      showView('dashboardScreen');
+      await renderUserDashboard();
+    } else {
+      showView('loginScreen');
+    }
+  };
+  content.appendChild(backBtn);
 
   // Save a scan record to Supabase (Finder lookup)
   try {
