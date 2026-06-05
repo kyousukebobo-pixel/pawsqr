@@ -1899,6 +1899,16 @@ async function resetPassword() {
   }
 
   try {
+    // Check if new password is same as current
+    const { data: currentUser } = await db.from('users').select('password').eq('email', forgotPasswordVerifiedEmail).single();
+    if (currentUser) {
+      const hashedNew = await hashPassword(newPassword);
+      if (currentUser.password === hashedNew || currentUser.password === newPassword) {
+        alert('New password cannot be the same as your current password. Please choose a different one.');
+        return;
+      }
+    }
+
     const { data: user, error } = await db.from('users').select('*').eq('email', forgotPasswordVerifiedEmail).single();
     if (error || !user) {
       alert('No account found for that email.');
