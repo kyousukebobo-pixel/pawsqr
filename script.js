@@ -1074,7 +1074,7 @@ function initGoogleSignIn() {
 
   try {
     google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
+      client_id: '540931981374-205a6qbbrte6lhulq32g5gcqt1adop3c.apps.googleusercontent.com',
       callback: handleGoogleSignInResponse,
       auto_select: false, // Disable auto-select to require user action
       ux_mode: 'popup', // Use popup instead of redirect
