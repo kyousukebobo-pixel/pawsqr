@@ -927,29 +927,20 @@ function triggerGoogleSignIn() {
     // Ensure we don't auto-select an already signed-in account
     if (google.accounts.id.disableAutoSelect) google.accounts.id.disableAutoSelect();
 
-    // Try One Tap first; if it doesn't display, render a popup button and open it
-    google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        // If One Tap doesn't show, fall back to programmatic popup sign-in
-        let btn = document.getElementById('petnet-google-btn');
-        if (!btn) {
-          btn = document.createElement('div');
-          btn.id = 'petnet-google-btn';
-          btn.style.position = 'fixed';
-          btn.style.left = '-9999px';
-          document.body.appendChild(btn);
+    const clientId = '540931981374-205a6qbbrte6lhulq32g5gcqt1adop3c.apps.googleusercontent.com';
+    const redirectUri = 'https://kyousukebobo-pixel.github.io/pawsqr';
+    const scope = encodeURIComponent('email profile');
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scope}`;
+
+    if (typeof google.accounts.id.prompt === 'function') {
+      google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.()) {
+          window.location.href = oauthUrl;
         }
-        google.accounts.id.renderButton(
-          btn,
-          { type: 'standard', size: 'large', theme: 'outline', text: 'signin_with' }
-        );
-        // Click the hidden button to open the popup chooser
-        setTimeout(() => {
-          const rendered = btn.querySelector('button');
-          if (rendered) rendered.click();
-        }, 100);
-      }
-    });
+      });
+    } else {
+      window.location.href = oauthUrl;
+    }
   } catch (error) {
     console.error('Google Sign-In error:', error);
     showMessage('Google Sign-In failed. Please try again.');
@@ -1076,8 +1067,8 @@ function initGoogleSignIn() {
     google.accounts.id.initialize({
       client_id: '540931981374-205a6qbbrte6lhulq32g5gcqt1adop3c.apps.googleusercontent.com',
       callback: handleGoogleSignInResponse,
-      auto_select: false, // Disable auto-select to require user action
-      ux_mode: 'popup', // Use popup instead of redirect
+      ux_mode: 'redirect',
+      redirect_uri: 'https://kyousukebobo-pixel.github.io/pawsqr'
     });
   } catch (error) {
     console.error('Google Sign-In initialization error:', error);
